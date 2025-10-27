@@ -111,17 +111,42 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
       break;
 
-    case STATE_CONNECTING:
+    case STATE_CONNECTING: {
+      int status = WiFi.status();
 
+      if (status == WL_CONNECTED) {
+        current_state = STATE_SUCCESS;
+        state_change_time = millis();
+      } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
+        current_state = STATE_ERROR;
+        state_change_time = millis();
+      } else if (millis() - connection_start_time > WIFI_CONNECT_TIMEOUT_MS) {
+        current_state = STATE_ERROR;
+        state_change_time = millis();
+      } else {
+        // still connecting, draw animation
+        draw_message(COLOR_YELLOW, "connecting...", true, 120, 180, lcd);
+      }
       break;
+    }
 
-    case STATE_SUCCESS:
 
-      break;
+case STATE_SUCCESS:
+    draw_message(COLOR_GREEN, "Connected!", false, 120, 180, lcd);
+    if (millis() - state_change_time > 1500) {
+        current_state = STATE_LIST;
+    }
+    break;
 
     case STATE_ERROR:
-
-      break;
+      /*we can maybe later implement a more complete system with
+      different error codes to display different messages*/
+          draw_message(COLOR_RED, "Error connecting!", false, 120, 180, lcd);
+    if (millis() - state_change_time > 1500) {
+        current_state = STATE_LIST;
+    }
+    break;
+      
   }
 }
 
@@ -142,6 +167,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
             if (scanned_networks[network_index].encryption == WIFI_AUTH_OPEN) {
               connect(scanned_networks[selected_network].ssid, "");
+              current_state = STATE_CONNECTING;
             } else {
               current_state = STATE_PASSWORD;
               kb.clear();
@@ -175,12 +201,11 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
       if (kb.is_complete()) {
         const char* password = kb.get_text();
-        char typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH + 1];
         strncpy(typed_ssid_password, password, MAX_WIFI_PASSWORD_LENGTH);
         typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
-        connect(scanned_networks[selected_network].ssid, typed_password);// initiates wifi connection
-        current_state = STATE_CONNECTING;  // show connecting animation
+        connect(scanned_networks[selected_network].ssid, typed_ssid_password);  // initiates wifi connection
+        current_state = STATE_CONNECTING;                                  // show connecting animation
         kb.reset_complete();
       }
       break;
@@ -203,7 +228,10 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       break;
   }
 }
-void WifiConfigScreen::connect(const char* ssid, const char* password)  {}
+void WifiConfigScreen::connect(const char* ssid, const char* password) {
+  WiFi.begin(ssid, password);
+  connection_start_time = millis(); 
+}
 
 // drawing helper placeholders
 void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {}

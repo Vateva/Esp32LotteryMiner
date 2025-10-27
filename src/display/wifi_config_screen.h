@@ -32,13 +32,15 @@ class WifiConfigScreen {
   network_info_t scanned_networks[20];                // up to 20 networks
   int8_t scanned_networks_amount;                     // actual count found
   int8_t selected_network;                            // index of selected network (-1 if none)
+  unsigned long connection_start_time;                // when connection attempt started
   char manual_ssid[MAX_SSID_LENGTH + 1];              // stores manually entered ssid
-  char typed_password[MAX_WIFI_PASSWORD_LENGTH + 1];  // password entered by user
+  char typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH + 1];  // password entered by user
 
   // ui state
-  screen_state_t current_state;  // current screen state
-  int8_t current_page;           // current page in network list
-  Keyboard kb;                   // keyboard widget for password entry
+  screen_state_t current_state;     // current screen state
+  int8_t current_page;              // current page in network list
+  unsigned long state_change_time;  // when state last changed
+  Keyboard kb;                      // keyboard widget for password entry
 
   // drawing helpers - render specific ui elements
   void draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
