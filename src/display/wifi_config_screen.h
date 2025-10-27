@@ -29,10 +29,11 @@ struct network_info_t {
 class WifiConfigScreen {
  private:
   // network data
-  network_info_t scanned_networks[20];    // up to 20 networks
-  int8_t scanned_networks_amount;         // actual count found
-  int8_t selected_network;                // index of selected network (-1 if none)
-  char manual_ssid[MAX_SSID_LENGTH + 1];  // stores manually entered ssid
+  network_info_t scanned_networks[20];                // up to 20 networks
+  int8_t scanned_networks_amount;                     // actual count found
+  int8_t selected_network;                            // index of selected network (-1 if none)
+  char manual_ssid[MAX_SSID_LENGTH + 1];              // stores manually entered ssid
+  char typed_password[MAX_WIFI_PASSWORD_LENGTH + 1];  // password entered by user
 
   // ui state
   screen_state_t current_state;  // current screen state
@@ -61,6 +62,6 @@ class WifiConfigScreen {
   void clear();                                                         // resets screen state
   void handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd);  // processes touch input
   void start_scan();                                                    // initiates network scan
-  void connect();                                                       // connects to selected network
+  void connect(const char* ssid, const char* password);                 // connects to selected network
 };
 #endif

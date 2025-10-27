@@ -129,42 +129,81 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 void WifiConfigScreen::clear() {}
 
 void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
-  for (int i = 0; i < 6; i++) {
-    if (is_point_in_rect(tx,ty,LIST_START_X,LIST_START_Y + ITEM_HEIGHT * i,SCREEN_WIDTH, ITEM_HEIGHT)) {  // touch at i network item
-        int network_index = (current_page * ITEMS_PER_PAGE) + i;//which netowrk? e.g. third item of page 2 = 8
-        
-        if( network_index < scanned_networks_amount){//is a valid network?
-          selected_network = network_index;
+  switch (current_state) {
+    case STATE_LIST: {
+      // check network item touches
+      for (int i = 0; i < ITEMS_PER_PAGE; i++) {
+        uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
+        if (is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
+          int network_index = (current_page * ITEMS_PER_PAGE) + i;
 
-          if ( scanned_networks[network_index].encryption == WIFI_AUTH_OPEN){//if no password
-              connect();//just connect
-          } else {
-            current_state = STATE_PASSWORD; // otherwise bring up keyboard to enter password
-            kb.clear();
-            kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
+          if (network_index < scanned_networks_amount) {
+            selected_network = network_index;
+
+            if (scanned_networks[network_index].encryption == WIFI_AUTH_OPEN) {
+              connect(scanned_networks[selected_network].ssid, "");
+            } else {
+              current_state = STATE_PASSWORD;
+              kb.clear();
+              kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
+            }
+            return;
           }
-
-        return;//touch handled
         }
-        
+      }
+
+      // check button touches (outside loop)
+      if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BUTTON_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
+        if (current_page > 0) {
+          current_page--;
+        }
+      } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BUTTON_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
+        int max_pages = (scanned_networks_amount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE - 1;
+        if (current_page < max_pages) {
+          current_page++;
+        }
+      } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BUTTON_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
+        current_state = STATE_SSID_MANUAL_ENTRY;
+        kb.clear();
+        kb.set_max_length(MAX_SSID_LENGTH);
+      }
+      break;
     }
-  }
-  if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BUTTON_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {// if prev button
-    if (current_page > 0) {
-      current_page--;
+
+    case STATE_PASSWORD: {  // handle touch in password entering state
+      kb.handle_touch(tx, ty, lcd);
+
+      if (kb.is_complete()) {
+        const char* password = kb.get_text();
+        char typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH + 1];
+        strncpy(typed_ssid_password, password, MAX_WIFI_PASSWORD_LENGTH);
+        typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
+
+        connect(scanned_networks[selected_network].ssid, typed_password);// initiates wifi connection
+        current_state = STATE_CONNECTING;  // show connecting animation
+        kb.reset_complete();
+      }
+      break;
     }
-  } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BUTTON_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {//if next button
-    int max_pages = (scanned_networks_amount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE - 1;  // how many pages we need
-    if (current_page < max_pages) {
-      current_page++;
-    }
-  } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BUTTON_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {// if manual bnutton
-    current_state = STATE_SSID_MANUAL_ENTRY;// introduce SSID manually
-    kb.clear();
-    kb.set_max_length(MAX_SSID_LENGTH);
+
+    case STATE_SSID_MANUAL_ENTRY:
+      // TODO: implement
+      break;
+
+    case STATE_PASSWORD_MANUAL_ENTRY:
+      // TODO: implement
+      break;
+
+    case STATE_SUCCESS:
+      // TODO: implement
+      break;
+
+    case STATE_ERROR:
+      // TODO: implement
+      break;
   }
 }
-void WifiConfigScreen::connect() {}
+void WifiConfigScreen::connect(const char* ssid, const char* password)  {}
 
 // drawing helper placeholders
 void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {}
@@ -187,11 +226,11 @@ void WifiConfigScreen::draw_page_buttons(lgfx::LGFX_Device* lcd) {}
 
 void WifiConfigScreen::draw_manual_entry_button(lgfx::LGFX_Device* lcd) {}
 
-bool is_point_in_rect(uint16_t touch_x,
-                      uint16_t touch_y,
-                      uint16_t rect_x,
-                      uint16_t rect_y,
-                      uint16_t rect_width,
-                      uint16_t rect_height) {
+bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,
+                                        uint16_t touch_y,
+                                        uint16_t rect_x,
+                                        uint16_t rect_y,
+                                        uint16_t rect_width,
+                                        uint16_t rect_height) {
   return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
 }
