@@ -252,7 +252,25 @@ void WifiConfigScreen::draw_message(uint16_t color,
                                     bool animated,
                                     uint16_t x,
                                     uint16_t y,
-                                    lgfx::LGFX_Device* lcd) {}
+                                    lgfx::LGFX_Device* lcd) {
+    // draw message text
+    lcd->setTextColor(color);
+    lcd->setTextSize(KB_TEXT_SIZE_LARGE);
+    lcd->setCursor(x, y);
+    lcd->print(message);
+    
+    // draw animated dots if requested
+    if (animated) {
+        unsigned long current_time = millis();
+        int dot_count = (current_time / 500) % 4;  // cycles 0-3 every 2 seconds
+        
+        lcd->fillRect(x, y + 20, 40, 16, COLOR_BLACK);  // clear rectangle for dots
+        lcd->setCursor(x, y + 20);  // position dots below message
+        for (int i = 0; i < dot_count; i++) {
+            lcd->print('.');
+        }
+    }
+}
 
 void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {}
 
