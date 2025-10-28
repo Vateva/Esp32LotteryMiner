@@ -104,11 +104,11 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       break;
 
     case STATE_SSID_MANUAL_ENTRY:
-
+      kb.draw(lcd);
       break;
 
     case STATE_PASSWORD_MANUAL_ENTRY:
-
+      kb.draw(lcd);
       break;
 
     case STATE_CONNECTING: {
@@ -130,23 +130,21 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       break;
     }
 
-
-case STATE_SUCCESS:
-    draw_message(COLOR_GREEN, "Connected!", false, 120, 180, lcd);
-    if (millis() - state_change_time > 1500) {
+    case STATE_SUCCESS:
+      draw_message(COLOR_GREEN, "Connected!", false, 120, 180, lcd);
+      if (millis() - state_change_time > 1500) {
         current_state = STATE_LIST;
-    }
-    break;
+      }
+      break;
 
     case STATE_ERROR:
       /*we can maybe later implement a more complete system with
       different error codes to display different messages*/
-          draw_message(COLOR_RED, "Error connecting!", false, 120, 180, lcd);
-    if (millis() - state_change_time > 1500) {
+      draw_message(COLOR_RED, "Error connecting!", false, 120, 180, lcd);
+      if (millis() - state_change_time > 1500) {
         current_state = STATE_LIST;
-    }
-    break;
-      
+      }
+      break;
   }
 }
 
@@ -205,32 +203,45 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
         connect(scanned_networks[selected_network].ssid, typed_ssid_password);  // initiates wifi connection
-        current_state = STATE_CONNECTING;                                  // show connecting animation
+        current_state = STATE_CONNECTING;                                       // show connecting animation
         kb.reset_complete();
       }
       break;
     }
 
     case STATE_SSID_MANUAL_ENTRY:
-      // TODO: implement
+      kb.handle_touch(tx, ty, lcd);
+
+      if (kb.is_complete()) {
+        const char* ssid = kb.get_text();
+        strncpy(manual_ssid, ssid, MAX_SSID_LENGTH);
+        manual_ssid[MAX_WIFI_PASSWORD_LENGTH] = '\0';
+
+        current_state = STATE_PASSWORD_MANUAL_ENTRY;
+        kb.clear();  // show connecting animation
+        kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
+        kb.reset_complete();
+      }
       break;
 
     case STATE_PASSWORD_MANUAL_ENTRY:
-      // TODO: implement
-      break;
+      kb.handle_touch(tx, ty, lcd);
 
-    case STATE_SUCCESS:
-      // TODO: implement
-      break;
+      if (kb.is_complete()) {
+        const char* password = kb.get_text();
+        strncpy(typed_ssid_password, password, MAX_WIFI_PASSWORD_LENGTH);
+        typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
-    case STATE_ERROR:
-      // TODO: implement
+        connect(manual_ssid, typed_ssid_password);  // initiates wifi connection
+        current_state = STATE_CONNECTING;           // show connecting animation
+        kb.reset_complete();
+      }
       break;
   }
 }
 void WifiConfigScreen::connect(const char* ssid, const char* password) {
   WiFi.begin(ssid, password);
-  connection_start_time = millis(); 
+  connection_start_time = millis();
 }
 
 // drawing helper placeholders
