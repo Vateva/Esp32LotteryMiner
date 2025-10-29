@@ -11,14 +11,21 @@ const uint16_t ITEM_HEIGHT = 30;
 const uint16_t ITEMS_PER_PAGE = 5;  // how many items fit?
 
 // buttons at bottom
-const uint16_t BUTTON_Y = 210;
+const uint16_t BOTTOM_BUTTONS_Y = 210;
+const uint16_t BOTTOM_BUTTONS_TEXT_Y =  220;
+
 const uint16_t BUTTON_HEIGHT = 30;
 const uint16_t PREV_BUTTON_X = 5;    // left side
 const uint16_t PREV_BUTTON_W = 100;  // width
+const uint16_t PREV_BUTTON_TEXT_X = 15;
+
 const uint16_t NEXT_BUTTON_X = 110;  // center side
 const uint16_t NEXT_BUTTON_W = 100;
+const uint16_t NEXT_BUTTON_TEXT_X = 120;
+
 const uint16_t MANUAL_BUTTON_X = 215;  // right side
 const uint16_t MANUAL_BUTTON_W = 100;
+const uint16_t MANUAL_BUTTON_TEXT_X = 225;
 
 // constructor - initialize screen state
 WifiConfigScreen::WifiConfigScreen() {
@@ -50,7 +57,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       } else if (scan_status == 0) {
         // no networks found
         draw_message(COLOR_YELLOW, "no networks found.", false, 120, 180, lcd);
-        draw_manual_entry_button(lcd);
+        draw_bottom_buttons(lcd);
       } else {
         // networks found - process results
         int networks_found = min(scan_status, 50);
@@ -177,16 +184,16 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       }
 
       // check button touches (outside loop)
-      if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BUTTON_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
+      if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
         if (current_page > 0) {
           current_page--;
         }
-      } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BUTTON_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
+      } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
         int max_pages = (scanned_networks_amount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE - 1;
         if (current_page < max_pages) {
           current_page++;
         }
-      } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BUTTON_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
+      } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
         current_state = STATE_SSID_MANUAL_ENTRY;
         kb.clear();
         kb.set_max_length(MAX_SSID_LENGTH);
@@ -272,16 +279,31 @@ void WifiConfigScreen::draw_message(uint16_t color,
     }
 }
 
-void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {}
+void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
+
+}
 
 void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
                                               uint16_t x,
                                               uint16_t y,
                                               lgfx::LGFX_Device* lcd) {}
 
-void WifiConfigScreen::draw_page_buttons(lgfx::LGFX_Device* lcd) {}
+void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
+  lcd->setTextColor(COLOR_WHITE);
 
-void WifiConfigScreen::draw_manual_entry_button(lgfx::LGFX_Device* lcd) {}
+  lcd->drawRect(PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT);
+  lcd->setCursor(PREV_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
+  lcd->print("Prev.");
+
+  lcd->drawRect(NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT);
+  lcd->setCursor(NEXT_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
+  lcd->print("Next");
+
+  lcd->drawRect(MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT);
+  lcd->setCursor(MANUAL_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
+  lcd->print("Enter SSID");
+
+}
 
 bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,
                                         uint16_t touch_y,
