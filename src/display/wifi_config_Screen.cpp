@@ -12,7 +12,7 @@ const uint16_t ITEMS_PER_PAGE = 5;  // how many items fit?
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 210;
-const uint16_t BOTTOM_BUTTONS_TEXT_Y =  220;
+const uint16_t BOTTOM_BUTTONS_TEXT_Y = 220;
 
 const uint16_t BUTTON_HEIGHT = 30;
 const uint16_t PREV_BUTTON_X = 5;    // left side
@@ -260,33 +260,57 @@ void WifiConfigScreen::draw_message(uint16_t color,
                                     uint16_t x,
                                     uint16_t y,
                                     lgfx::LGFX_Device* lcd) {
-    // draw message text
-    lcd->setTextColor(color);
-    lcd->setTextSize(KB_TEXT_SIZE_LARGE);
-    lcd->setCursor(x, y);
-    lcd->print(message);
-    
-    // draw animated dots if requested
-    if (animated) {
-        unsigned long current_time = millis();
-        int dot_count = (current_time / 500) % 4;  // cycles 0-3 every 2 seconds
-        
-        lcd->fillRect(x, y + 20, 40, 16, COLOR_BLACK);  // clear rectangle for dots
-        lcd->setCursor(x, y + 20);  // position dots below message
-        for (int i = 0; i < dot_count; i++) {
-            lcd->print('.');
-        }
+  // draw message text
+  lcd->setTextColor(color);
+  lcd->setTextSize(KB_TEXT_SIZE_LARGE);
+  lcd->setCursor(x, y);
+  lcd->print(message);
+
+  // draw animated dots if requested
+  if (animated) {
+    unsigned long current_time = millis();
+    int dot_count = (current_time / 500) % 4;  // cycles 0-3 every 2 seconds
+
+    lcd->fillRect(x, y + 20, 40, 16, COLOR_BLACK);  // clear rectangle for dots
+    lcd->setCursor(x, y + 20);                      // position dots below message
+    for (int i = 0; i < dot_count; i++) {
+      lcd->print('.');
     }
+  }
 }
 
-void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
-
-}
+void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {}
 
 void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
                                               uint16_t x,
                                               uint16_t y,
-                                              lgfx::LGFX_Device* lcd) {}
+                                              lgfx::LGFX_Device* lcd) {
+  lcd->setTextSize(2);
+  lcd->setCursor(x, y);
+
+  // check if ssid needs truncation
+  int ssid_len = strlen(network.ssid);
+  int max_chars = 20;  // fits on screen with room for bars
+
+  if (ssid_len > max_chars) {
+    // truncate and add ellipsis
+    char truncated[max_chars + 4];  // +4 for "..." and '\0'
+    strncpy(truncated, network.ssid, max_chars);
+    truncated[max_chars] = '.';
+    truncated[max_chars + 1] = '.';
+    truncated[max_chars + 2] = '.';
+    truncated[max_chars + 3] = '\0';
+    lcd->print(truncated);
+  } else {
+    lcd->print(network.ssid);
+  }
+
+  // calculate bar position based on what was actually printed
+  int displayed_len = (ssid_len > max_chars) ? max_chars + 3 : ssid_len;
+  int bars_x = x + (displayed_len * 12);
+
+  draw_signal_strength_bars(network.rssi, bars_x, y, lcd);
+}
 
 void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
   lcd->setTextColor(COLOR_WHITE);
@@ -302,7 +326,6 @@ void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
   lcd->drawRect(MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT);
   lcd->setCursor(MANUAL_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
   lcd->print("Enter SSID");
-
 }
 
 bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,

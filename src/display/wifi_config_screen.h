@@ -47,8 +47,7 @@ class WifiConfigScreen {
   void draw_message(uint16_t color, const char* message, bool animated, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_network_list(lgfx::LGFX_Device* lcd);
   void draw_network_list_item(const network_info_t& network, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
-  void draw_page_buttons(lgfx::LGFX_Device* lcd);
-  void draw_manual_entry_button(lgfx::LGFX_Device* lcd);
+  void draw_bottom_buttons(lgfx::LGFX_Device* lcd);
   bool is_point_in_rect(uint16_t touch_x,
                         uint16_t touch_y,
                         uint16_t rect_x,
