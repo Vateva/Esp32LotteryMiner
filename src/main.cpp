@@ -1,12 +1,9 @@
-// main.cpp: keyboard test program
+// main.cpp: wifi config screen test
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <WiFi.h>
 #include "config.h"
-#include "display/keyboard.h"
-
-
-void display_results();
-
+#include "display/wifi_config_screen.h"
 
 // lgfx class for ili9341 + ft6336 touch
 class LGFX : public lgfx::LGFX_Device {
@@ -87,24 +84,7 @@ public:
 
 // global instances
 LGFX lcd;
-Keyboard kb;
-
-// test state machine
-enum test_state_t {
-  TEST_WIFI_SSID,
-  TEST_WIFI_PASSWORD,
-  TEST_POOL_URL,
-  TEST_WALLET,
-  TEST_COMPLETE
-};
-
-test_state_t current_test = TEST_WIFI_SSID;
-
-// storage for test inputs
-char saved_ssid[MAX_SSID_LENGTH + 1] = {0};
-char saved_password[MAX_WIFI_PASSWORD_LENGTH + 1] = {0};
-char saved_pool[MAX_POOL_URL_LENGTH + 1] = {0};
-char saved_wallet[MAX_WALLET_ADDRESS_LENGTH + 1] = {0};
+WifiConfigScreen wifi_screen;
 
 // setup
 void setup() {
@@ -112,7 +92,7 @@ void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
   delay(1000);
   Serial.println("\n================================");
-  Serial.println("   keyboard test program");
+  Serial.println("   wifi config screen test");
   Serial.println("================================");
   
   // init display
@@ -129,13 +109,16 @@ void setup() {
     Serial.println("[error] touch controller not detected!");
   }
   
-  // config keyboard for first test (ssid)
-  kb.set_max_length(MAX_SSID_LENGTH);
-  kb.clear();
+  // set wifi mode to station
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
   
-  Serial.println("\n--- test 1: wifi ssid ---");
-  Serial.println("enter wifi network name");
-  Serial.println("press return when done");
+  Serial.println("[ok] wifi initialized");
+  
+  // start network scan
+  wifi_screen.start_scan();
+  Serial.println("[info] starting wifi scan...");
   Serial.println();
 }
 
@@ -149,245 +132,27 @@ void loop() {
     uint16_t x = lcd.width() - 1 - tx;
     uint16_t y = lcd.height() - 1 - ty;
     
-    // pass touch to keyboard handler
-    kb.handle_touch(x, y, &lcd);
+    // pass touch to wifi screen handler
+    wifi_screen.handle_touch(x, y, &lcd);
   }
   
-  // draw keyboard (handles redraw logic)
-  kb.draw(&lcd);
+  // draw current wifi screen state
+  wifi_screen.draw(&lcd);
   
-  // check if 'return' was pressed
-  if (kb.is_complete()) {
-    const char* text = kb.get_text();
-    
-    switch (current_test) {
-      // test 1: wifi ssid
-      case TEST_WIFI_SSID:
-        strncpy(saved_ssid, text, MAX_SSID_LENGTH);
-        saved_ssid[MAX_SSID_LENGTH] = '\0';
-        
-        Serial.print("[input] ssid: \"");
-        Serial.print(saved_ssid);
-        Serial.println("\"");
-        Serial.print("[info] length: ");
-        Serial.print(strlen(saved_ssid));
-        Serial.println(" characters");
-        
-        // transition to password test
-        current_test = TEST_WIFI_PASSWORD;
-        kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
-        kb.clear();
-        kb.reset_complete();
-        
-        Serial.println("\n--- test 2: wifi password ---");
-        Serial.println("enter wifi password");
-        Serial.println("(max 63 characters)");
-        Serial.println();
-        break;
-      
-      // test 2: wifi password
-      case TEST_WIFI_PASSWORD:
-        strncpy(saved_password, text, MAX_WIFI_PASSWORD_LENGTH);
-        saved_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
-        
-        Serial.print("[input] password: \"");
-        Serial.print(saved_password);
-        Serial.println("\"");
-        Serial.print("[info] length: ");
-        Serial.print(strlen(saved_password));
-        Serial.println(" characters");
-        
-        // transition to pool url test
-        current_test = TEST_POOL_URL;
-        kb.set_max_length(MAX_POOL_URL_LENGTH);
-        kb.clear();
-        kb.reset_complete();
-        
-        Serial.println("\n--- test 3: pool url ---");
-        Serial.println("enter mining pool address");
-        Serial.println("try long text to test wrapping!");
-        Serial.println("example: solo.ckpool.org");
-        Serial.println();
-        break;
-      
-      // test 3: pool url
-      case TEST_POOL_URL:
-        strncpy(saved_pool, text, MAX_POOL_URL_LENGTH);
-        saved_pool[MAX_POOL_URL_LENGTH] = '\0';
-        
-        Serial.print("[input] pool url: \"");
-        Serial.print(saved_pool);
-        Serial.println("\"");
-        Serial.print("[info] length: ");
-        Serial.print(strlen(saved_pool));
-        Serial.println(" characters");
-        
-        if (strlen(saved_pool) > KB_TEXT_THRESHOLD) {
-          Serial.println("[test] text wrapping triggered (>26 chars)");
-        }
-        
-        // transition to wallet test
-        current_test = TEST_WALLET;
-        kb.set_max_length(MAX_WALLET_ADDRESS_LENGTH);
-        kb.clear();
-        kb.reset_complete();
-        
-        Serial.println("\n--- test 4: wallet address ---");
-        Serial.println("enter bitcoin wallet address");
-        Serial.println("try really long text (60+ chars)");
-        Serial.println("example: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh");
-        Serial.println();
-        break;
-      
-      // test 4: wallet address
-      case TEST_WALLET:
-        strncpy(saved_wallet, text, MAX_WALLET_ADDRESS_LENGTH);
-        saved_wallet[MAX_WALLET_ADDRESS_LENGTH] = '\0';
-        
-        Serial.print("[input] wallet: \"");
-        Serial.print(saved_wallet);
-        Serial.println("\"");
-        Serial.print("[info] length: ");
-        Serial.print(strlen(saved_wallet));
-        Serial.println(" characters");
-        
-        if (strlen(saved_wallet) > KB_MAX_VISIBLE_CHARS) {
-          Serial.println("[test] ellipsis triggered (>100 chars)");
-        }
-        
-        // all tests complete
-        current_test = TEST_COMPLETE;
-        display_results();
-        break;
-      
-      // tests complete
-      case TEST_COMPLETE:
-        // wait for reset
-        break;
+  // check if connected
+  if (WiFi.status() == WL_CONNECTED) {
+    // print connection info once
+    static bool info_printed = false;
+    if (!info_printed) {
+      Serial.println("\n[success] wifi connected!");
+      Serial.print("  ssid: ");
+      Serial.println(WiFi.SSID());
+      Serial.print("  ip address: ");
+      Serial.println(WiFi.localIP());
+      Serial.print("  rssi: ");
+      Serial.print(WiFi.RSSI());
+      Serial.println(" dBm");
+      info_printed = true;
     }
   }
-}
-
-// display results on screen and serial
-void display_results() {
-  // clear screen
-  lcd.fillScreen(COLOR_BLACK);
-  
-  // draw success message
-  lcd.setTextColor(COLOR_GREEN);
-  lcd.setTextSize(2);
-  lcd.setCursor(40, 30);
-  lcd.println("tests complete!");
-  
-  // draw instructions
-  lcd.setTextSize(1);
-  lcd.setTextColor(COLOR_YELLOW);
-  lcd.setCursor(10, 60);
-  lcd.println("check serial monitor for results");
-  lcd.setCursor(10, 75);
-  lcd.println("press reset to test again");
-  
-  // draw summary on screen
-  lcd.setTextColor(COLOR_WHITE);
-  lcd.setCursor(10, 100);
-  lcd.print("ssid: ");
-  lcd.println(saved_ssid[0] ? saved_ssid : "(empty)");
-  
-  lcd.setCursor(10, 115);
-  lcd.print("pass: ");
-  if (saved_password[0]) {
-    // show asterisks for password
-    for (uint8_t i = 0; i < strlen(saved_password) && i < 20; i++) {
-      lcd.print("*");
-    }
-    if (strlen(saved_password) > 20) {
-      lcd.print("...");
-    }
-  } else {
-    lcd.print("(empty)");
-  }
-  
-  lcd.setCursor(10, 130);
-  lcd.print("pool: ");
-  if (strlen(saved_pool) > 30) {
-    // truncate long urls
-    char temp[31];
-    strncpy(temp, saved_pool, 30);
-    temp[30] = '\0';
-    lcd.print(temp);
-    lcd.print("...");
-  } else {
-    lcd.println(saved_pool[0] ? saved_pool : "(empty)");
-  }
-  
-  lcd.setCursor(10, 145);
-  lcd.print("wallet: ");
-  if (strlen(saved_wallet) > 25) {
-    // truncate long addresses
-    char temp[26];
-    strncpy(temp, saved_wallet, 25);
-    temp[25] = '\0';
-    lcd.print(temp);
-    lcd.print("...");
-  } else {
-    lcd.println(saved_wallet[0] ? saved_wallet : "(empty)");
-  }
-  
-  // print detailed results to serial
-  Serial.println("\n================================");
-  Serial.println("   test results summary");
-  Serial.println("================================");
-  Serial.println();
-  
-  Serial.println("wifi configuration:");
-  Serial.print("  ssid: \"");
-  Serial.print(saved_ssid[0] ? saved_ssid : "(empty)");
-  Serial.println("\"");
-  Serial.print("  password: \"");
-  Serial.print(saved_password[0] ? saved_password : "(empty)");
-  Serial.println("\"");
-  Serial.println();
-  
-  Serial.println("mining configuration:");
-  Serial.print("  pool url: \"");
-  Serial.print(saved_pool[0] ? saved_pool : "(empty)");
-  Serial.println("\"");
-  Serial.print("  wallet address: \"");
-  Serial.print(saved_wallet[0] ? saved_wallet : "(empty)");
-  Serial.println("\"");
-  Serial.println();
-  
-  Serial.println("keyboard test results:");
-  Serial.print("  [");
-  Serial.print(strlen(saved_ssid) > 0 ? "✓" : "x");
-  Serial.println("] wifi ssid");
-  Serial.print("  [");
-  Serial.print(strlen(saved_password) > 0 ? "✓" : "x");
-  Serial.println("] wifi password");
-  Serial.print("  [");
-  Serial.print(strlen(saved_pool) > 0 ? "✓" : "x");
-  Serial.println("] pool url");
-  Serial.print("  [");
-  Serial.print(strlen(saved_wallet) > 0 ? "✓" : "x");
-  Serial.println("] wallet address");
-  Serial.println();
-  
-  Serial.println("test features verified:");
-  Serial.println("  [✓] basic text input");
-  Serial.println("  [✓] keyboard mode switching");
-  Serial.println("  [✓] backspace functionality");
-  Serial.println("  [✓] space bar");
-  Serial.println("  [✓] return key");
-  if (strlen(saved_pool) > KB_TEXT_THRESHOLD || strlen(saved_wallet) > KB_TEXT_THRESHOLD) {
-    Serial.println("  [✓] text size auto-scaling");
-  }
-  if (strlen(saved_wallet) > 53) {
-    Serial.println("  [✓] multi-line text wrapping");
-  }
-  Serial.println();
-  
-  Serial.println("================================");
-  Serial.println("all keyboard tests passed!");
-  Serial.println("press reset to run again");
-  Serial.println("================================");
 }

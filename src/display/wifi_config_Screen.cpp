@@ -5,27 +5,43 @@
 const uint16_t HEADER_HEIGHT = 30;
 
 // network list items
-const uint16_t LIST_START_X = 0;
+const uint16_t LIST_START_X = 2;
 const uint16_t LIST_START_Y = 35;
 const uint16_t ITEM_HEIGHT = 30;
 const uint16_t ITEMS_PER_PAGE = 5;  // how many items fit?
 
 // buttons at bottom
-const uint16_t BOTTOM_BUTTONS_Y = 210;
-const uint16_t BOTTOM_BUTTONS_TEXT_Y = 220;
-
+const uint16_t BOTTOM_BUTTONS_Y = 209;
+const uint16_t BOTTOM_BUTTONS_TEXT_Y = 219;
 const uint16_t BUTTON_HEIGHT = 30;
-const uint16_t PREV_BUTTON_X = 5;    // left side
-const uint16_t PREV_BUTTON_W = 100;  // width
-const uint16_t PREV_BUTTON_TEXT_X = 15;
 
-const uint16_t NEXT_BUTTON_X = 110;  // center side
-const uint16_t NEXT_BUTTON_W = 100;
-const uint16_t NEXT_BUTTON_TEXT_X = 120;
+const uint16_t BUTTON_GAP = 5;
 
-const uint16_t MANUAL_BUTTON_X = 215;  // right side
-const uint16_t MANUAL_BUTTON_W = 100;
-const uint16_t MANUAL_BUTTON_TEXT_X = 225;
+const uint16_t PREV_BUTTON_X = BUTTON_GAP;  // 5
+const uint16_t PREV_BUTTON_W = 73;
+const uint16_t PREV_BUTTON_TEXT_X = PREV_BUTTON_X + 10;  // 15
+
+const uint16_t NEXT_BUTTON_X = PREV_BUTTON_X + PREV_BUTTON_W + BUTTON_GAP;  // 83
+const uint16_t NEXT_BUTTON_W = 73;
+const uint16_t NEXT_BUTTON_TEXT_X = NEXT_BUTTON_X + 10;  // 93
+
+const uint16_t RESCAN_BUTTON_X = NEXT_BUTTON_X + NEXT_BUTTON_W + BUTTON_GAP;  // 161
+const uint16_t RESCAN_BUTTON_W = 73;
+const uint16_t RESCAN_BUTTON_TEXT_X = RESCAN_BUTTON_X + 5;  // 166 (shorter text needs less offset)
+
+const uint16_t MANUAL_BUTTON_X = RESCAN_BUTTON_X + RESCAN_BUTTON_W + BUTTON_GAP;  // 239
+const uint16_t MANUAL_BUTTON_W = 76;  // slightly wider to fill remaining space
+const uint16_t MANUAL_BUTTON_TEXT_X = MANUAL_BUTTON_X + 5;  // 244
+
+// strengh barrs parameters
+const uint16_t BARR_W = 2;
+const uint16_t BARR_1_H = 3;
+const uint16_t BARR_2_H = 6;
+const uint16_t BARR_3_H = 9;
+const uint16_t BARR_4_H = 12;
+const uint16_t BARR_2_X_OFFSET = 3;
+const uint16_t BARR_3_X_OFFSET = 6;
+const uint16_t BARR_4_X_OFFSET = 9;
 
 // constructor - initialize screen state
 WifiConfigScreen::WifiConfigScreen() {
@@ -33,6 +49,7 @@ WifiConfigScreen::WifiConfigScreen() {
   current_page = 0;
   selected_network = -1;
   scanned_networks_amount = 0;
+  list_needs_redraw = true;  // redraw flag
 }
 
 // initiates async wifi network scan
@@ -97,6 +114,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         // cleanup and transition to list view
         WiFi.scanDelete();
         scanned_networks_amount = networks_to_copy;
+        list_needs_redraw = true;
         current_state = STATE_LIST;
       }
       break;
@@ -132,7 +150,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         state_change_time = millis();
       } else {
         // still connecting, draw animation
-        draw_message(COLOR_YELLOW, "connecting...", true, 120, 180, lcd);
+        draw_message(COLOR_YELLOW, "connecting...", true, 180, 120, lcd);
       }
       break;
     }
@@ -140,6 +158,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
     case STATE_SUCCESS:
       draw_message(COLOR_GREEN, "Connected!", false, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
+        list_needs_redraw = true;
         current_state = STATE_LIST;
       }
       break;
@@ -149,13 +168,14 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       different error codes to display different messages*/
       draw_message(COLOR_RED, "Error connecting!", false, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
+        list_needs_redraw = true;
         current_state = STATE_LIST;
       }
       break;
   }
 }
 
-// placeholder methods - to be implemented
+// placeholder method
 void WifiConfigScreen::clear() {}
 
 void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
@@ -183,17 +203,22 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         }
       }
 
-      // check button touches (outside loop)
+      // check button touches
       if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
         if (current_page > 0) {
+          list_needs_redraw = true;
           current_page--;
         }
       } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
         int max_pages = (scanned_networks_amount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE - 1;
         if (current_page < max_pages) {
+          list_needs_redraw = true;
           current_page++;
         }
-      } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
+      } else if (is_point_in_rect(tx, ty, RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT)) {
+        current_state = STATE_SCANNING;
+
+      }  else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
         current_state = STATE_SSID_MANUAL_ENTRY;
         kb.clear();
         kb.set_max_length(MAX_SSID_LENGTH);
@@ -222,7 +247,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       if (kb.is_complete()) {
         const char* ssid = kb.get_text();
         strncpy(manual_ssid, ssid, MAX_SSID_LENGTH);
-        manual_ssid[MAX_WIFI_PASSWORD_LENGTH] = '\0';
+        manual_ssid[MAX_SSID_LENGTH] = '\0';
 
         current_state = STATE_PASSWORD_MANUAL_ENTRY;
         kb.clear();  // show connecting animation
@@ -252,7 +277,32 @@ void WifiConfigScreen::connect(const char* ssid, const char* password) {
 }
 
 // drawing helper placeholders
-void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {}
+void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {
+  if (rssi < -70) {
+    lcd->fillRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_RED);
+    lcd->setColor(COLOR_BLACK);
+    lcd->drawRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H);
+    lcd->drawRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H);
+    lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
+  } else if (rssi >= -70 && rssi < -55) {
+    lcd->fillRect(x+5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_ORANGE);
+    lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_ORANGE);
+    lcd->setColor(COLOR_BLACK);
+    lcd->drawRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H);
+    lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
+  } else if (rssi >= -55 && rssi < -35) {
+    lcd->fillRect(x+5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_DARKGREEN);
+    lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_DARKGREEN);
+    lcd->fillRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H, COLOR_DARKGREEN);
+    lcd->setColor(COLOR_BLACK);
+    lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
+  } else if (rssi >= -35) {
+    lcd->fillRect(x+5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_GREEN);
+    lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_GREEN);
+    lcd->fillRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H, COLOR_GREEN);
+    lcd->fillRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H, COLOR_GREEN);
+  }
+}
 
 void WifiConfigScreen::draw_message(uint16_t color,
                                     const char* message,
@@ -260,6 +310,9 @@ void WifiConfigScreen::draw_message(uint16_t color,
                                     uint16_t x,
                                     uint16_t y,
                                     lgfx::LGFX_Device* lcd) {
+                                      
+  //clear screen                                 
+  lcd->fillScreen(COLOR_WHITE);
   // draw message text
   lcd->setTextColor(color);
   lcd->setTextSize(KB_TEXT_SIZE_LARGE);
@@ -279,12 +332,37 @@ void WifiConfigScreen::draw_message(uint16_t color,
   }
 }
 
-void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {}
+void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
+  if (list_needs_redraw) {
+    lcd->fillScreen(COLOR_WHITE);
+    list_needs_redraw = false;
+  }
+  // draw header
+  lcd->setTextColor(COLOR_BLACK);
+  lcd->setTextSize(2);
+  lcd->setCursor(10, 10);
+  lcd->print("Select Network");
+
+  // calculate which networks to show on this page
+  int start_index = current_page * ITEMS_PER_PAGE;
+  int end_index = min(start_index + ITEMS_PER_PAGE, (int)scanned_networks_amount);
+
+  // draw each network item
+  for (int i = start_index; i < end_index; i++) {
+    int item_index = i - start_index;  // 0-4 for positioning
+    uint16_t item_y = LIST_START_Y + (item_index * ITEM_HEIGHT);
+    draw_network_list_item(scanned_networks[i], LIST_START_X, item_y, lcd);
+  }
+
+  // draw navigation buttons
+  draw_bottom_buttons(lcd);
+}
 
 void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
                                               uint16_t x,
                                               uint16_t y,
                                               lgfx::LGFX_Device* lcd) {
+  lcd->setTextColor(COLOR_BLACK);
   lcd->setTextSize(2);
   lcd->setCursor(x, y);
 
@@ -313,15 +391,21 @@ void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
 }
 
 void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
-  lcd->setTextColor(COLOR_WHITE);
+  lcd->setTextColor(COLOR_BLACK);
+  lcd->setColor(COLOR_BLACK);
+    lcd->setTextSize(1);
 
   lcd->drawRect(PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT);
   lcd->setCursor(PREV_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
-  lcd->print("Prev.");
+  lcd->print("Previous");
 
   lcd->drawRect(NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT);
   lcd->setCursor(NEXT_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
   lcd->print("Next");
+
+  lcd->drawRect(RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT);
+  lcd->setCursor(RESCAN_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
+  lcd->print("Retry Scan");
 
   lcd->drawRect(MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT);
   lcd->setCursor(MANUAL_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
