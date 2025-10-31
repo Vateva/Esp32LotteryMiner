@@ -53,6 +53,9 @@ public:
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
 
+      cfg.invert = true;        // Enable color inversion
+      //cfg.rgb_order = false;
+
       _panel_instance.config(cfg);
     }
 

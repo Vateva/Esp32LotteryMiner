@@ -49,11 +49,17 @@ private:
     // keyboard mode state
     keyboard_mode_t current_mode;
     bool input_complete;
+    bool mode_changed;
+    bool needs_full_clear;  // tracks if full screen clear is needed
     
     // key press highlight state
     int8_t pressed_key_index;
     unsigned long press_timestamp;
     static const uint16_t PRESS_HIGHLIGHT_DURATION = KB_PRESS_HIGHLIGHT_MS;
+
+    //debounce
+    unsigned long last_touch_time;
+    static const uint16_t DEBOUNCE_DELAY = 200;  // milliseconds
     
     // layout definitions
     keyboard_key_t lowercase_keys[MAX_KEYS];
@@ -80,6 +86,7 @@ public:
     void draw(lgfx::LGFX_Device* lcd);
     void mark_for_redraw();;
     void handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd);
+    void show(lgfx::LGFX_Device* lcd);
     
     bool is_complete() const;
     const char* get_text() const;

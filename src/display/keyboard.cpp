@@ -9,7 +9,10 @@ Keyboard::Keyboard() {
     input_complete = false;
     pressed_key_index = -1;
     press_timestamp = 0;
-    requires_redraw = true;  
+    requires_redraw = true;
+    last_touch_time = 0;
+    mode_changed = false;
+    needs_full_clear = true;  // needs full clear on first draw
     
     // initialize all three key layouts
     init_lowercase_layout();
@@ -32,6 +35,7 @@ void Keyboard::clear() {
     input_buffer[0] = '\0';
     input_complete = false;
     pressed_key_index = -1;
+    needs_full_clear = true;  // next draw should clear screen
     mark_for_redraw();
 }
 
@@ -374,6 +378,12 @@ void Keyboard::draw_input_area(lgfx::LGFX_Device* lcd) {
 
 // main draw call (updates screen)
 void Keyboard::draw(lgfx::LGFX_Device* lcd) {
+    // check if full screen clear is needed (first show or after clear())
+    if (needs_full_clear) {
+        lcd->fillScreen(KB_BG_COLOR);  // clear entire screen
+        needs_full_clear = false;       // only clear once
+    }
+    
     // check if highlight just expired
     bool highlight_just_expired = false;
     if (pressed_key_index >= 0) {
@@ -384,10 +394,20 @@ void Keyboard::draw(lgfx::LGFX_Device* lcd) {
         }
     }
     
+    // clear keyboard area if layout changed (leaves input area intact)
+    if (mode_changed) {
+        // calculate keyboard area height: from keyboard start to screen bottom
+        uint16_t keyboard_area_height = SCREEN_HEIGHT - KEYBOARD_Y_START;
+        // clear only the keyboard area, not the input box at top
+        lcd->fillRect(0, KEYBOARD_Y_START, SCREEN_WIDTH, keyboard_area_height, KB_BG_COLOR);
+        mode_changed = false;  // reset flag after clearing
+    }
+    
     // only redraw if state changed or highlight expired
     if (!requires_redraw && !highlight_just_expired) {
         return;
     }
+    
     // redraw input area
     draw_input_area(lcd);
     
@@ -463,8 +483,10 @@ void Keyboard::handle_key_press(int8_t key_index) {
                 // toggle lower/upper case
                 if (current_mode == KB_LOWERCASE) {
                     current_mode = KB_UPPERCASE;
+                    mode_changed = true;  // flag that layout changed
                 } else if (current_mode == KB_UPPERCASE) {
                     current_mode = KB_LOWERCASE;
+                    mode_changed = true;  // flag that layout changed
                 }
                 break;
                 
@@ -490,8 +512,10 @@ void Keyboard::handle_key_press(int8_t key_index) {
                 // toggle letters/numbers mode
                 if (current_mode == KB_NUMBERS) {
                     current_mode = KB_LOWERCASE;
+                    mode_changed = true;  // flag that layout changed
                 } else {
                     current_mode = KB_NUMBERS;
+                    mode_changed = true;  // flag that layout changed
                 }
                 break;
         }
@@ -519,10 +543,19 @@ void Keyboard::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
     // ignore touches outside keyboard area
     if (ty < KEYBOARD_Y_START) return;
     
+    // debouncing: check if enough time passed since last touch
+    unsigned long current_time = millis();
+    if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
+        return;  // ignore touch, too soon after last one
+    }
+    
     // get key index from touch
     int8_t key_index = find_touched_key(tx, ty);
     
     if (key_index >= 0) {
+        // update debounce timer
+        last_touch_time = current_time;
+        
         // save press state for highlight
         pressed_key_index = key_index;
         press_timestamp = millis();

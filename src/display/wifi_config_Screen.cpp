@@ -2,13 +2,16 @@
 #include "wifi_config_screen.h"
 
 // header area
-const uint16_t HEADER_HEIGHT = 30;
+const uint16_t HEADER_HEIGHT = 39;
+const uint16_t HEADER_TEXT_X = 70;
+const uint16_t HEADER_TEXT_Y = 13;
 
 // network list items
-const uint16_t LIST_START_X = 2;
-const uint16_t LIST_START_Y = 35;
-const uint16_t ITEM_HEIGHT = 30;
-const uint16_t ITEMS_PER_PAGE = 5;  // how many items fit?
+const uint16_t LIST_START_X = 5;
+const uint16_t LIST_START_Y = 40;
+const uint16_t ITEM_HEIGHT = 40;
+const uint16_t ITEMS_PER_PAGE = 4;
+const uint16_t ITEM_GAP = 2;
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 209;
@@ -30,8 +33,16 @@ const uint16_t RESCAN_BUTTON_W = 73;
 const uint16_t RESCAN_BUTTON_TEXT_X = RESCAN_BUTTON_X + 5;  // 166 (shorter text needs less offset)
 
 const uint16_t MANUAL_BUTTON_X = RESCAN_BUTTON_X + RESCAN_BUTTON_W + BUTTON_GAP;  // 239
-const uint16_t MANUAL_BUTTON_W = 76;  // slightly wider to fill remaining space
+const uint16_t MANUAL_BUTTON_W = 76;                        // slightly wider to fill remaining space
 const uint16_t MANUAL_BUTTON_TEXT_X = MANUAL_BUTTON_X + 5;  // 244
+
+// back button at top
+const uint16_t BACK_BUTTON_X = 2;
+const uint16_t BACK_BUTTON_Y = 3;
+const uint16_t BACK_BUTTON_TEXT_X = 5;
+const uint16_t BACK_BUTTON_TEXT_Y = 11;
+const uint16_t BACK_BUTTON_HEIGHT = 30;
+const uint16_t BACK_BUTTON_W = 30;
 
 // strengh barrs parameters
 const uint16_t BARR_W = 2;
@@ -70,10 +81,12 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         start_scan();
       } else if (scan_status == -1) {
         // still scanning
-        draw_message(COLOR_YELLOW, "scanning networks...", true, 120, 180, lcd);
+        draw_message(COLOR_YELLOW, "scanning networks...", true, 120, 120, lcd);
+        draw_back_button(lcd);
       } else if (scan_status == 0) {
         // no networks found
-        draw_message(COLOR_YELLOW, "no networks found.", false, 120, 180, lcd);
+        draw_message(COLOR_YELLOW, "no networks found.", false, 120, 120, lcd);
+        draw_back_button(lcd);
         draw_bottom_buttons(lcd);
       } else {
         // networks found - process results
@@ -122,6 +135,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
     case STATE_LIST:
       draw_network_list(lcd);
+      draw_back_button(lcd);
       break;
 
     case STATE_PASSWORD:
@@ -130,10 +144,12 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
     case STATE_SSID_MANUAL_ENTRY:
       kb.draw(lcd);
+      draw_back_button(lcd);
       break;
 
     case STATE_PASSWORD_MANUAL_ENTRY:
       kb.draw(lcd);
+      draw_back_button(lcd);
       break;
 
     case STATE_CONNECTING: {
@@ -152,6 +168,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         // still connecting, draw animation
         draw_message(COLOR_YELLOW, "connecting...", true, 180, 120, lcd);
       }
+      draw_back_button(lcd);
       break;
     }
 
@@ -159,6 +176,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       draw_message(COLOR_GREEN, "Connected!", false, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
         list_needs_redraw = true;
+        draw_back_button(lcd);
         current_state = STATE_LIST;
       }
       break;
@@ -169,6 +187,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       draw_message(COLOR_RED, "Error connecting!", false, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
         list_needs_redraw = true;
+        draw_back_button(lcd);
         current_state = STATE_LIST;
       }
       break;
@@ -180,6 +199,14 @@ void WifiConfigScreen::clear() {}
 
 void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
   switch (current_state) {
+    case STATE_SCANNING: {
+      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+        WiFi.scanDelete();  // cancel ongoing scan
+        current_state = STATE_LIST;
+        list_needs_redraw = true;  // force redraw when returning to list
+      }
+      break;
+    }
     case STATE_LIST: {
       // check network item touches
       for (int i = 0; i < ITEMS_PER_PAGE; i++) {
@@ -216,16 +243,17 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
           current_page++;
         }
       } else if (is_point_in_rect(tx, ty, RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT)) {
-        current_state = STATE_SCANNING;
+        start_scan();
 
-      }  else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
+      } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
         current_state = STATE_SSID_MANUAL_ENTRY;
         kb.clear();
         kb.set_max_length(MAX_SSID_LENGTH);
+      } else if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+        // HERE WE WILL GET OUT OF THE WIFICONFIG INTERFACE
       }
       break;
     }
-
     case STATE_PASSWORD: {  // handle touch in password entering state
       kb.handle_touch(tx, ty, lcd);
 
@@ -241,7 +269,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       break;
     }
 
-    case STATE_SSID_MANUAL_ENTRY:
+    case STATE_SSID_MANUAL_ENTRY: {
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_complete()) {
@@ -255,8 +283,8 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         kb.reset_complete();
       }
       break;
-
-    case STATE_PASSWORD_MANUAL_ENTRY:
+    }
+    case STATE_PASSWORD_MANUAL_ENTRY: {
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_complete()) {
@@ -269,6 +297,25 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         kb.reset_complete();
       }
       break;
+    }
+    case STATE_CONNECTING: {
+      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+        current_state = STATE_LIST;
+      }
+      break;
+    }
+    case STATE_SUCCESS: {
+      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+        current_state = STATE_LIST;
+      }
+      break;
+    }
+    case STATE_ERROR: {
+      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+        current_state = STATE_LIST;
+      }
+      break;
+    }
   }
 }
 void WifiConfigScreen::connect(const char* ssid, const char* password) {
@@ -278,26 +325,32 @@ void WifiConfigScreen::connect(const char* ssid, const char* password) {
 
 // drawing helper placeholders
 void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {
-  if (rssi < -70) {
-    lcd->fillRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_RED);
-    lcd->setColor(COLOR_BLACK);
+  if (rssi < -85) {
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H);
     lcd->drawRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H);
     lcd->drawRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H);
     lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
-  } else if (rssi >= -70 && rssi < -55) {
-    lcd->fillRect(x+5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_ORANGE);
-    lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_ORANGE);
-    lcd->setColor(COLOR_BLACK);
+  } else if (rssi >= -85 && rssi < -75) {
+    lcd->fillRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_RED);
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H);
     lcd->drawRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H);
     lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
-  } else if (rssi >= -55 && rssi < -35) {
-    lcd->fillRect(x+5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_DARKGREEN);
+  } else if (rssi >= -75 && rssi < -65) {
+    lcd->fillRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_ORANGE);
+    lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_ORANGE);
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H);
+    lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
+  } else if (rssi >= -65 && rssi < -55) {
+    lcd->fillRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_DARKGREEN);
     lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_DARKGREEN);
     lcd->fillRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H, COLOR_DARKGREEN);
-    lcd->setColor(COLOR_BLACK);
+    lcd->setColor(COLOR_WHITE);
     lcd->drawRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H);
-  } else if (rssi >= -35) {
-    lcd->fillRect(x+5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_GREEN);
+  } else if (rssi >= -45) {
+    lcd->fillRect(x + 5, y + ITEM_HEIGHT / 2 - BARR_1_H, BARR_W, BARR_1_H, COLOR_GREEN);
     lcd->fillRect(x + 5 + BARR_2_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_2_H, BARR_W, BARR_2_H, COLOR_GREEN);
     lcd->fillRect(x + 5 + BARR_3_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_3_H, BARR_W, BARR_3_H, COLOR_GREEN);
     lcd->fillRect(x + 5 + BARR_4_X_OFFSET, y + ITEM_HEIGHT / 2 - BARR_4_H, BARR_W, BARR_4_H, COLOR_GREEN);
@@ -310,9 +363,8 @@ void WifiConfigScreen::draw_message(uint16_t color,
                                     uint16_t x,
                                     uint16_t y,
                                     lgfx::LGFX_Device* lcd) {
-                                      
-  //clear screen                                 
-  lcd->fillScreen(COLOR_WHITE);
+  // clear screen
+  lcd->fillScreen(COLOR_BLACK);
   // draw message text
   lcd->setTextColor(color);
   lcd->setTextSize(KB_TEXT_SIZE_LARGE);
@@ -324,7 +376,7 @@ void WifiConfigScreen::draw_message(uint16_t color,
     unsigned long current_time = millis();
     int dot_count = (current_time / 500) % 4;  // cycles 0-3 every 2 seconds
 
-    lcd->fillRect(x, y + 20, 40, 16, COLOR_BLACK);  // clear rectangle for dots
+    lcd->fillRect(x, y + 20, 40, 16, COLOR_WHITE);  // clear rectangle for dots
     lcd->setCursor(x, y + 20);                      // position dots below message
     for (int i = 0; i < dot_count; i++) {
       lcd->print('.');
@@ -334,13 +386,13 @@ void WifiConfigScreen::draw_message(uint16_t color,
 
 void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
   if (list_needs_redraw) {
-    lcd->fillScreen(COLOR_WHITE);
+    lcd->fillScreen(COLOR_BLACK);
     list_needs_redraw = false;
   }
   // draw header
-  lcd->setTextColor(COLOR_BLACK);
+  lcd->setTextColor(COLOR_WHITE);
   lcd->setTextSize(2);
-  lcd->setCursor(10, 10);
+  lcd->setCursor(HEADER_TEXT_X, HEADER_TEXT_Y);
   lcd->print("Select Network");
 
   // calculate which networks to show on this page
@@ -350,7 +402,7 @@ void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
   // draw each network item
   for (int i = start_index; i < end_index; i++) {
     int item_index = i - start_index;  // 0-4 for positioning
-    uint16_t item_y = LIST_START_Y + (item_index * ITEM_HEIGHT);
+    uint16_t item_y = LIST_START_Y + (item_index * (ITEM_HEIGHT + ITEM_GAP));
     draw_network_list_item(scanned_networks[i], LIST_START_X, item_y, lcd);
   }
 
@@ -362,17 +414,21 @@ void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
                                               uint16_t x,
                                               uint16_t y,
                                               lgfx::LGFX_Device* lcd) {
-  lcd->setTextColor(COLOR_BLACK);
+  // draw rectangle around item
+  lcd->setColor(COLOR_WHITE);
+  lcd->drawRect(x, y, SCREEN_WIDTH - (2 * x), ITEM_HEIGHT, COLOR_WHITE);
+
+  // draw text inside
+  lcd->setTextColor(COLOR_WHITE);
   lcd->setTextSize(2);
-  lcd->setCursor(x, y);
+  lcd->setCursor(x + 3, y + 12);  // offset from border
 
   // check if ssid needs truncation
   int ssid_len = strlen(network.ssid);
-  int max_chars = 20;  // fits on screen with room for bars
+  int max_chars = 15;  // reduce slightly to fit inside rectangle
 
   if (ssid_len > max_chars) {
-    // truncate and add ellipsis
-    char truncated[max_chars + 4];  // +4 for "..." and '\0'
+    char truncated[max_chars + 4];
     strncpy(truncated, network.ssid, max_chars);
     truncated[max_chars] = '.';
     truncated[max_chars + 1] = '.';
@@ -383,17 +439,25 @@ void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
     lcd->print(network.ssid);
   }
 
-  // calculate bar position based on what was actually printed
   int displayed_len = (ssid_len > max_chars) ? max_chars + 3 : ssid_len;
   int bars_x = x + (displayed_len * 12);
 
-  draw_signal_strength_bars(network.rssi, bars_x, y, lcd);
+  draw_signal_strength_bars(network.rssi, bars_x, y + 6, lcd);
+}
+void WifiConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setColor(COLOR_WHITE);
+  lcd->setTextSize(2);
+
+  lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
+  lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
+  lcd->print("<-");
 }
 
 void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
-  lcd->setTextColor(COLOR_BLACK);
-  lcd->setColor(COLOR_BLACK);
-    lcd->setTextSize(1);
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setColor(COLOR_WHITE);
+  lcd->setTextSize(1);
 
   lcd->drawRect(PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT);
   lcd->setCursor(PREV_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);

@@ -10,7 +10,7 @@
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 
-// color definitions (rgb565)
+// Byte-swapped RGB565 colors for ILI9341
 #define COLOR_BLACK 0x0000
 #define COLOR_WHITE 0xFFFF
 #define COLOR_RED 0xF800
@@ -20,9 +20,9 @@
 #define COLOR_CYAN 0x07FF
 #define COLOR_MAGENTA 0xF81F
 #define COLOR_ORANGE 0xFD20
-#define COLOR_DARKGREY 0x4208
-#define COLOR_LIGHTGREY 0xC618
-#define COLOR_DARKGREEN 0x0320
+#define COLOR_DARKGREY 0x8410
+#define COLOR_LIGHTGREY 0xBDF7
+#define COLOR_DARKGREEN 0x03E0
 
 // keyboard configuration
 
