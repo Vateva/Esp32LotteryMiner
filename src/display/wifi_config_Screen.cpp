@@ -81,11 +81,11 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         start_scan();
       } else if (scan_status == -1) {
         // still scanning
-        draw_message(COLOR_YELLOW, "scanning networks...", true, 120, 120, lcd);
+        draw_message(COLOR_YELLOW, "scanning networks", true, true, 120, 120, lcd);
         draw_back_button(lcd);
       } else if (scan_status == 0) {
         // no networks found
-        draw_message(COLOR_YELLOW, "no networks found.", false, 120, 120, lcd);
+        draw_message(COLOR_YELLOW, "no networks found.", false, true, 120, 120, lcd);
         draw_back_button(lcd);
         draw_bottom_buttons(lcd);
       } else {
@@ -144,12 +144,10 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
     case STATE_SSID_MANUAL_ENTRY:
       kb.draw(lcd);
-      draw_back_button(lcd);
       break;
 
     case STATE_PASSWORD_MANUAL_ENTRY:
       kb.draw(lcd);
-      draw_back_button(lcd);
       break;
 
     case STATE_CONNECTING: {
@@ -166,17 +164,16 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         state_change_time = millis();
       } else {
         // still connecting, draw animation
-        draw_message(COLOR_YELLOW, "connecting...", true, 180, 120, lcd);
+        draw_message(COLOR_YELLOW, "connecting", true, true, 180, 120, lcd);
       }
       draw_back_button(lcd);
       break;
     }
 
     case STATE_SUCCESS:
-      draw_message(COLOR_GREEN, "Connected!", false, 120, 180, lcd);
+      draw_message(COLOR_GREEN, "Connected!", false, true, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
         list_needs_redraw = true;
-        draw_back_button(lcd);
         current_state = STATE_LIST;
       }
       break;
@@ -184,7 +181,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
     case STATE_ERROR:
       /*we can maybe later implement a more complete system with
       different error codes to display different messages*/
-      draw_message(COLOR_RED, "Error connecting!", false, 120, 180, lcd);
+      draw_message(COLOR_RED, "Error connecting!", false, true, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
         list_needs_redraw = true;
         draw_back_button(lcd);
@@ -223,6 +220,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
             } else {
               current_state = STATE_PASSWORD;
               kb.clear();
+              kb.set_label("Enter network password");
               kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
             }
             return;
@@ -248,6 +246,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
         current_state = STATE_SSID_MANUAL_ENTRY;
         kb.clear();
+        kb.set_label("Enter network ssid");
         kb.set_max_length(MAX_SSID_LENGTH);
       } else if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         // HERE WE WILL GET OUT OF THE WIFICONFIG INTERFACE
@@ -279,6 +278,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
         current_state = STATE_PASSWORD_MANUAL_ENTRY;
         kb.clear();  // show connecting animation
+        kb.set_label("Enter network password");
         kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
         kb.reset_complete();
       }
@@ -360,24 +360,48 @@ void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi, uint16_t x, uint1
 void WifiConfigScreen::draw_message(uint16_t color,
                                     const char* message,
                                     bool animated,
+                                    bool is_centered,
                                     uint16_t x,
                                     uint16_t y,
                                     lgfx::LGFX_Device* lcd) {
   // clear screen
   lcd->fillScreen(COLOR_BLACK);
+
+  lcd->setTextSize(KB_TEXT_SIZE_LARGE);
+
+  // calculate position
+  int text_x = x;
+  int text_y = y;
+
+  if (is_centered) {
+    // for centering, include dots in width calculation
+    int message_width = strlen(message) * 12;
+    int dots_width = animated ? (3 * 12) : 0;  // reserve space for max 3 dots
+    int total_width = message_width + dots_width;
+    int text_height = 16;
+
+    text_x = (SCREEN_WIDTH - total_width) / 2;
+    text_y = (SCREEN_HEIGHT - text_height) / 2;
+  }
+
   // draw message text
   lcd->setTextColor(color);
-  lcd->setTextSize(KB_TEXT_SIZE_LARGE);
-  lcd->setCursor(x, y);
+  lcd->setCursor(text_x, text_y);
   lcd->print(message);
 
-  // draw animated dots if requested
+  // draw animated dots right after text on same line
   if (animated) {
     unsigned long current_time = millis();
-    int dot_count = (current_time / 500) % 4;  // cycles 0-3 every 2 seconds
+    int dot_count = (current_time / 500) % 4;
 
-    lcd->fillRect(x, y + 20, 40, 16, COLOR_WHITE);  // clear rectangle for dots
-    lcd->setCursor(x, y + 20);                      // position dots below message
+    int message_width = strlen(message) * 12;
+    int dots_x = text_x + message_width;
+
+    // clear dot area (for all 3 dots)
+    lcd->fillRect(dots_x, text_y, 36, 16, COLOR_BLACK);
+
+    // draw current dots
+    lcd->setCursor(dots_x, text_y);
     for (int i = 0; i < dot_count; i++) {
       lcd->print('.');
     }
@@ -395,15 +419,23 @@ void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
   lcd->setCursor(HEADER_TEXT_X, HEADER_TEXT_Y);
   lcd->print("Select Network");
 
-  // calculate which networks to show on this page
-  int start_index = current_page * ITEMS_PER_PAGE;
-  int end_index = min(start_index + ITEMS_PER_PAGE, (int)scanned_networks_amount);
+  // check if we have networks to display
+  if (scanned_networks_amount == 0) {
+    draw_message(COLOR_YELLOW, "No networks available", false, false, 80, 100, lcd);
+    draw_message(COLOR_YELLOW, "Press 'Retry Scan' to scan", false, false, 70, 115, lcd);
+    draw_back_button(lcd);
+    draw_bottom_buttons(lcd);
 
-  // draw each network item
-  for (int i = start_index; i < end_index; i++) {
-    int item_index = i - start_index;  // 0-4 for positioning
-    uint16_t item_y = LIST_START_Y + (item_index * (ITEM_HEIGHT + ITEM_GAP));
-    draw_network_list_item(scanned_networks[i], LIST_START_X, item_y, lcd);
+  } else {
+    // draw network items
+    int start_index = current_page * ITEMS_PER_PAGE;
+    int end_index = min(start_index + ITEMS_PER_PAGE, (int)scanned_networks_amount);
+
+    for (int i = start_index; i < end_index; i++) {
+      int item_index = i - start_index;
+      uint16_t item_y = LIST_START_Y + (item_index * (ITEM_HEIGHT + ITEM_GAP));
+      draw_network_list_item(scanned_networks[i], LIST_START_X, item_y, lcd);
+    }
   }
 
   // draw navigation buttons

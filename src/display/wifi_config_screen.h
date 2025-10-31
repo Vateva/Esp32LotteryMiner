@@ -45,7 +45,7 @@ class WifiConfigScreen {
 
   // drawing helpers - render specific ui elements
   void draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
-  void draw_message(uint16_t color, const char* message, bool animated, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
+  void draw_message(uint16_t color, const char* message, bool animated, bool is_centered, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_network_list(lgfx::LGFX_Device* lcd);
   void draw_network_list_item(const network_info_t& network, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_back_button(lgfx::LGFX_Device* lcd);
