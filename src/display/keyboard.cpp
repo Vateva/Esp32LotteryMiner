@@ -333,7 +333,7 @@ void Keyboard::draw_key(lgfx::LGFX_Device* lcd, const keyboard_key_t& key, bool 
     switch (key.special_id) {
       case KEY_BACK:
         lcd->setCursor(key.x + 15, key.y + 16);
-        lcd->print("X");
+        lcd->print("Back");
         break;
       case KEY_SHIFT:
         lcd->setCursor(key.x + 12, key.y + 16);
@@ -345,11 +345,11 @@ void Keyboard::draw_key(lgfx::LGFX_Device* lcd, const keyboard_key_t& key, bool 
         break;
       case KEY_SPACE:
         lcd->setCursor(key.x + 35, key.y + 16);
-        lcd->print("space");
+        lcd->print("Space");
         break;
       case KEY_RETURN:
         lcd->setCursor(key.x + 10, key.y + 16);
-        lcd->print("ret");
+        lcd->print("Enter");
         break;
       case KEY_MODE_SWITCH:
         lcd->setCursor(key.x + 8, key.y + 16);
