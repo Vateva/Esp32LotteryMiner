@@ -27,6 +27,7 @@ struct keyboard_key_t {
 #define KEY_SPACE 3
 #define KEY_RETURN 4
 #define KEY_MODE_SWITCH 5
+#define KEY_BACK 6  // add after KEY_MODE_SWITCH
 
 class Keyboard {
  private:
@@ -50,6 +51,7 @@ class Keyboard {
   // keyboard mode state
   keyboard_mode_t current_mode;
   bool input_complete;
+  bool input_cancelled;  // flag set when back button pressed
   bool mode_changed;
   bool needs_full_clear;  // tracks if full screen clear is needed
 
@@ -91,6 +93,8 @@ class Keyboard {
   void show(lgfx::LGFX_Device* lcd);
 
   bool is_complete() const;
+  bool is_cancelled() const;
+  void reset_cancelled();
   const char* get_text() const;
   void reset_complete();
 

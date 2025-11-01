@@ -1,7 +1,9 @@
 // main.cpp: wifi config screen test
 #define LGFX_USE_V1
-#include <LovyanGFX.hpp>
 #include <WiFi.h>
+
+#include <LovyanGFX.hpp>
+
 #include "config.h"
 #include "display/wifi_config_screen.h"
 
@@ -11,7 +13,7 @@ class LGFX : public lgfx::LGFX_Device {
   lgfx::Bus_SPI _bus_instance;
   lgfx::Touch_FT5x06 _touch_instance;
 
-public:
+ public:
   LGFX(void) {
     // spi bus config
     {
@@ -23,12 +25,12 @@ public:
       cfg.spi_3wire = false;
       cfg.use_lock = true;
       cfg.dma_channel = SPI_DMA_CH_AUTO;
-      
+
       cfg.pin_sclk = PIN_LCD_SCLK;
       cfg.pin_mosi = PIN_LCD_MOSI;
       cfg.pin_miso = PIN_LCD_MISO;
       cfg.pin_dc = PIN_LCD_DC;
-      
+
       _bus_instance.config(cfg);
       _panel_instance.setBus(&_bus_instance);
     }
@@ -39,9 +41,9 @@ public:
       cfg.pin_cs = PIN_LCD_CS;
       cfg.pin_rst = PIN_LCD_RST;
       cfg.pin_busy = -1;
-      
-      cfg.panel_width = SCREEN_HEIGHT;   // 240
-      cfg.panel_height = SCREEN_WIDTH;   // 320
+
+      cfg.panel_width = SCREEN_HEIGHT;  // 240
+      cfg.panel_height = SCREEN_WIDTH;  // 320
       cfg.offset_x = 0;
       cfg.offset_y = 0;
       cfg.offset_rotation = 0;
@@ -53,8 +55,8 @@ public:
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
 
-      cfg.invert = true;        // Enable color inversion
-      //cfg.rgb_order = false;
+      cfg.invert = true;  // Enable color inversion
+      // cfg.rgb_order = false;
 
       _panel_instance.config(cfg);
     }
@@ -69,8 +71,8 @@ public:
       cfg.pin_int = PIN_TOUCH_INT;
       cfg.pin_rst = -1;
       cfg.bus_shared = false;
-      cfg.offset_rotation = 0;
-      
+      cfg.offset_rotation = 2;
+
       cfg.i2c_port = 0;
       cfg.i2c_addr = TOUCH_I2C_ADDR;
       cfg.freq = TOUCH_I2C_FREQUENCY;
@@ -97,28 +99,28 @@ void setup() {
   Serial.println("\n================================");
   Serial.println("   wifi config screen test");
   Serial.println("================================");
-  
+
   // init display
   lcd.init();
   lcd.setRotation(1);  // landscape
   lcd.fillScreen(COLOR_BLACK);
-  
+
   Serial.println("[ok] display initialized");
-  
+
   // check touch controller
   if (lcd.touch()) {
     Serial.println("[ok] touch controller ready");
   } else {
     Serial.println("[error] touch controller not detected!");
   }
-  
+
   // set wifi mode to station
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
-  
+
   Serial.println("[ok] wifi initialized");
-  
+
   // start network scan
   wifi_screen.start_scan();
   Serial.println("[info] starting wifi scan...");
@@ -127,21 +129,17 @@ void setup() {
 
 // main loop
 void loop() {
-  uint16_t tx, ty;
-  
+  uint16_t x, y;
+
   // check for touch
-  if (lcd.getTouch(&tx, &ty)) {
-    // invert coordinates for landscape rotation
-    uint16_t x = lcd.width() - 1 - tx;
-    uint16_t y = lcd.height() - 1 - ty;
-    
-    // pass touch to wifi screen handler
-    wifi_screen.handle_touch(x, y, &lcd);
-  }
-  
+  lcd.getTouch(&x, &y);
+
+  // pass touch to wifi screen handler
+  wifi_screen.handle_touch(x, y, &lcd);
+
   // draw current wifi screen state
   wifi_screen.draw(&lcd);
-  
+
   // check if connected
   if (WiFi.status() == WL_CONNECTED) {
     // print connection info once

@@ -43,9 +43,20 @@ class WifiConfigScreen {
   Keyboard kb;                      // keyboard widget for password entry
   bool list_needs_redraw;           // redraw flag
 
+  // debouncing
+  unsigned long last_touch_time;
+  static const uint16_t DEBOUNCE_DELAY = 200;  // milliseconds
+
   // drawing helpers - render specific ui elements
-  void draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
-  void draw_message(uint16_t color, const char* message, bool animated, bool is_centered, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
+  void draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, bool small, lgfx::LGFX_Device* lcd);
+  void draw_message(uint16_t color,
+                    const char* message,
+                    bool animated,
+                    bool is_centered,
+                    uint16_t x,
+                    uint16_t y,
+                    lgfx::LGFX_Device* lcd);
+  void draw_network_list_header(lgfx::LGFX_Device* lcd);
   void draw_network_list(lgfx::LGFX_Device* lcd);
   void draw_network_list_item(const network_info_t& network, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_back_button(lgfx::LGFX_Device* lcd);
@@ -56,6 +67,8 @@ class WifiConfigScreen {
                         uint16_t rect_y,
                         uint16_t rect_width,
                         uint16_t rect_height);
+//scan results
+void process_scan_results(int networks_found);
 
  public:
   WifiConfigScreen();

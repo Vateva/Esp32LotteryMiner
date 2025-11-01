@@ -2,23 +2,24 @@
 #include "keyboard.h"
 
 Keyboard::Keyboard() {
-  buffer_length = 0;
-  input_buffer[0] = '\0';
-  max_length = MAX_BUFFER_SIZE - 1;
-  current_mode = KB_LOWERCASE;
-  input_complete = false;
-  pressed_key_index = -1;
-  press_timestamp = 0;
-  requires_redraw = true;
-  last_touch_time = 0;
-  mode_changed = false;
-  needs_full_clear = true;
-  label_text[0] = '\0';  // no label by default
-
-  // initialize all three key layouts
-  init_lowercase_layout();
-  init_uppercase_layout();
-  init_number_layout();
+    buffer_length = 0;
+    input_buffer[0] = '\0';
+    max_length = MAX_BUFFER_SIZE - 1;
+    current_mode = KB_LOWERCASE;
+    input_complete = false;
+    input_cancelled = false;  // initialize cancel flag
+    pressed_key_index = -1;
+    press_timestamp = 0;
+    requires_redraw = true;
+    last_touch_time = 0;
+    mode_changed = false;
+    needs_full_clear = true;
+    label_text[0] = '\0';
+    
+    // initialize all three key layouts
+    init_lowercase_layout();
+    init_uppercase_layout();
+    init_number_layout();
 }
 
 void Keyboard::mark_for_redraw() {
@@ -35,10 +36,19 @@ void Keyboard::clear() {
     buffer_length = 0;
     input_buffer[0] = '\0';
     input_complete = false;
+    input_cancelled = false;  // reset cancel flag
     pressed_key_index = -1;
     needs_full_clear = true;
-    label_text[0] = '\0';  // clear label too
+    label_text[0] = '\0';
     mark_for_redraw();
+}
+
+bool Keyboard::is_cancelled() const {
+    return input_cancelled;
+}
+
+void Keyboard::reset_cancelled() {
+    input_cancelled = false;
 }
 
 // sets the label text to display above input area
@@ -51,7 +61,6 @@ void Keyboard::set_label(const char* text) {
   }
   mark_for_redraw();
 }
-
 
 
 void Keyboard::reset_complete() {
@@ -139,34 +148,44 @@ void Keyboard::init_lowercase_layout() {
   lowercase_keys[num_keys].special_id = KEY_BACKSPACE;
   num_keys++;
 
-  // row 4: mode switch space return
+  // row 4: back, mode switch, space, return
   y += 42 + KEY_SPACING;
   x = KEY_SPACING;
+
+  // back button
+  lowercase_keys[num_keys].x = x;
+  lowercase_keys[num_keys].y = y;
+  lowercase_keys[num_keys].w = 50;
+  lowercase_keys[num_keys].h = 42;
+  lowercase_keys[num_keys].is_special = true;
+  lowercase_keys[num_keys].special_id = KEY_BACK;
+  num_keys++;
+  x += 50 + KEY_SPACING;
 
   // mode switch key ("123")
   lowercase_keys[num_keys].x = x;
   lowercase_keys[num_keys].y = y;
-  lowercase_keys[num_keys].w = 55;
+  lowercase_keys[num_keys].w = 50;
   lowercase_keys[num_keys].h = 42;
   lowercase_keys[num_keys].is_special = true;
   lowercase_keys[num_keys].special_id = KEY_MODE_SWITCH;
   num_keys++;
-  x += 55 + KEY_SPACING;
+  x += 50 + KEY_SPACING;
 
   // space key
   lowercase_keys[num_keys].x = x;
   lowercase_keys[num_keys].y = y;
-  lowercase_keys[num_keys].w = 140;
+  lowercase_keys[num_keys].w = 110;
   lowercase_keys[num_keys].h = 42;
   lowercase_keys[num_keys].is_special = true;
   lowercase_keys[num_keys].special_id = KEY_SPACE;
   num_keys++;
-  x += 140 + KEY_SPACING;
+  x += 110 + KEY_SPACING;
 
   // return key
   lowercase_keys[num_keys].x = x;
   lowercase_keys[num_keys].y = y;
-  lowercase_keys[num_keys].w = 55;
+  lowercase_keys[num_keys].w = 50;
   lowercase_keys[num_keys].h = 42;
   lowercase_keys[num_keys].is_special = true;
   lowercase_keys[num_keys].special_id = KEY_RETURN;
@@ -249,34 +268,44 @@ void Keyboard::init_number_layout() {
   number_keys[idx].special_id = KEY_BACKSPACE;
   idx++;
 
-  // row 4: mode switch space return
+  // row 4: back, mode switch, space, return
   y += 42 + KEY_SPACING;
   x = KEY_SPACING;
+
+  // back button
+  number_keys[idx].x = x;
+  number_keys[idx].y = y;
+  number_keys[idx].w = 50;
+  number_keys[idx].h = 42;
+  number_keys[idx].is_special = true;
+  number_keys[idx].special_id = KEY_BACK;
+  idx++;
+  x += 50 + KEY_SPACING;
 
   // mode switch key ("abc")
   number_keys[idx].x = x;
   number_keys[idx].y = y;
-  number_keys[idx].w = 55;
+  number_keys[idx].w = 50;
   number_keys[idx].h = 42;
   number_keys[idx].is_special = true;
   number_keys[idx].special_id = KEY_MODE_SWITCH;
   idx++;
-  x += 55 + KEY_SPACING;
+  x += 50 + KEY_SPACING;
 
   // space key
   number_keys[idx].x = x;
   number_keys[idx].y = y;
-  number_keys[idx].w = 140;
+  number_keys[idx].w = 110;
   number_keys[idx].h = 42;
   number_keys[idx].is_special = true;
   number_keys[idx].special_id = KEY_SPACE;
   idx++;
-  x += 140 + KEY_SPACING;
+  x += 110 + KEY_SPACING;
 
   // return key
   number_keys[idx].x = x;
   number_keys[idx].y = y;
-  number_keys[idx].w = 55;
+  number_keys[idx].w = 50;
   number_keys[idx].h = 42;
   number_keys[idx].is_special = true;
   number_keys[idx].special_id = KEY_RETURN;
@@ -302,6 +331,10 @@ void Keyboard::draw_key(lgfx::LGFX_Device* lcd, const keyboard_key_t& key, bool 
     // draw special key icons
     lcd->setTextSize(1);
     switch (key.special_id) {
+      case KEY_BACK:
+        lcd->setCursor(key.x + 15, key.y + 16);
+        lcd->print("X");
+        break;
       case KEY_SHIFT:
         lcd->setCursor(key.x + 12, key.y + 16);
         lcd->print("^");
@@ -311,15 +344,15 @@ void Keyboard::draw_key(lgfx::LGFX_Device* lcd, const keyboard_key_t& key, bool 
         lcd->print("<");
         break;
       case KEY_SPACE:
-        lcd->setCursor(key.x + 50, key.y + 16);
+        lcd->setCursor(key.x + 35, key.y + 16);
         lcd->print("space");
         break;
       case KEY_RETURN:
-        lcd->setCursor(key.x + 15, key.y + 16);
+        lcd->setCursor(key.x + 10, key.y + 16);
         lcd->print("ret");
         break;
       case KEY_MODE_SWITCH:
-        lcd->setCursor(key.x + 10, key.y + 16);
+        lcd->setCursor(key.x + 8, key.y + 16);
         if (current_mode == KB_NUMBERS) {
           lcd->print("abc");
         } else {
@@ -510,6 +543,11 @@ void Keyboard::handle_key_press(int8_t key_index) {
   if (key.is_special) {
     // process special keys (shift mode etc)
     switch (key.special_id) {
+      case KEY_BACK:
+        // flag input as cancelled, don't modify buffer
+        input_cancelled = true;
+        break;
+        
       case KEY_SHIFT:
         // toggle lower/upper case
         if (current_mode == KB_LOWERCASE) {
