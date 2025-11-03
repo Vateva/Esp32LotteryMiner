@@ -5,7 +5,7 @@
 #include <LovyanGFX.hpp>
 
 #include "config.h"
-#include "display/wifi_config_screen.h"
+#include "wifi_config_screen.h"
 
 // lgfx class for ili9341 + ft6336 touch
 class LGFX : public lgfx::LGFX_Device {

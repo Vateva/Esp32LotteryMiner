@@ -41,7 +41,7 @@ class WifiConfigScreen {
   int8_t current_page;              // current page in network list
   unsigned long state_change_time;  // when state last changed
   Keyboard kb;                      // keyboard widget for password entry
-  bool list_needs_redraw;           // redraw flag
+  bool display_needs_redraw;           // redraw flag
 
   // debouncing
   unsigned long last_touch_time;

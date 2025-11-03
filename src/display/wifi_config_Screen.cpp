@@ -61,18 +61,22 @@ WifiConfigScreen::WifiConfigScreen() {
   current_page = 0;
   selected_network = -1;
   scanned_networks_amount = 0;
-  list_needs_redraw = true;  // redraw flag
+  display_needs_redraw = true;  // redraw flag
   last_touch_time = 0;       // initialize debounce timer
 }
 
 // initiates async wifi network scan
 void WifiConfigScreen::start_scan() {
   // Disconnect from any current connection attempt
+  // Set WiFi to station mode (required for scanning)
+  WiFi.mode(WIFI_STA);
+
   WiFi.disconnect(true);  // true = also clear saved AP settings in this session
   delay(100);             // Give the WiFi module time to fully disconnect
 
   WiFi.scanDelete();      // clean up any previous scan results
   selected_network = -1;  // reset selected network tracking
+  display_needs_redraw = true;
   current_state = STATE_SCANNING;
   WiFi.scanNetworks(true, false);
 }
@@ -124,11 +128,12 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         // scan failed
         Serial.println("wifi scan failed.");
         WiFi.scanDelete();
+        display_needs_redraw = true;
         current_state = STATE_ERROR;
         state_change_time = millis();
       } else if (scan_status == -1) {
         // still scanning
-        draw_message(COLOR_YELLOW, "Scanning networks", true, true, 120, 120, lcd);
+        draw_message(COLOR_YELLOW, "Scanning networks", true, true, 120, 120, lcd);\
         draw_back_button(lcd);
       } else if (scan_status >= 0) {
         // scan completed - process results
@@ -142,7 +147,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
         // cleanup and transition
         WiFi.scanDelete();
-        list_needs_redraw = true;
+        display_needs_redraw = true;
         current_state = STATE_LIST;
       }
       break;
@@ -170,19 +175,23 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       int status = WiFi.status();
 
       if (status == WL_CONNECTED) {
+        display_needs_redraw = true;
         current_state = STATE_SUCCESS;
         state_change_time = millis();
       } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
         WiFi.disconnect(true);  // Clean up the failed connection
+        display_needs_redraw = true;
         current_state = STATE_ERROR;
         state_change_time = millis();
       } else if (millis() - connection_start_time > WIFI_CONNECT_TIMEOUT_MS) {
         WiFi.disconnect(true);  // Clean up the failed connection
+        display_needs_redraw = true;
         current_state = STATE_ERROR;
         state_change_time = millis();
       } else {
         // still connecting, draw animation
         draw_message(COLOR_YELLOW, "connecting", true, true, 180, 120, lcd);
+        draw_network_list_header(lcd);
       }
       break;
     }
@@ -190,7 +199,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
     case STATE_SUCCESS:
       draw_message(COLOR_GREEN, "Connected!", false, true, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
-        list_needs_redraw = true;
+        display_needs_redraw = true;
         current_state = STATE_LIST;
       }
       break;
@@ -206,7 +215,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       }
 
       if (millis() - state_change_time > 5000) {
-        list_needs_redraw = true;
+        display_needs_redraw = true;
         current_state = STATE_LIST;
       }
       draw_back_button(lcd);
@@ -230,7 +239,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
     case STATE_SCANNING: {
       if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         WiFi.scanDelete();         // cancel ongoing scan
-        list_needs_redraw = true;  // force redraw when returning to list
+        display_needs_redraw = true;  // force redraw when returning to list
         current_state = STATE_LIST;
       }
       break;
@@ -247,6 +256,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
             if (scanned_networks[network_index].encryption == WIFI_AUTH_OPEN) {
               connect(scanned_networks[selected_network].ssid, "");
+              display_needs_redraw = true;
               current_state = STATE_CONNECTING;
             } else {
               current_state = STATE_PASSWORD;
@@ -262,13 +272,13 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       // check button touches
       if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
         if (current_page > 0) {
-          list_needs_redraw = true;
+          display_needs_redraw = true;
           current_page--;
         }
       } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
         int max_pages = (scanned_networks_amount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE - 1;
         if (current_page < max_pages) {
-          list_needs_redraw = true;
+          display_needs_redraw = true;
           current_page++;
         }
       } else if (is_point_in_rect(tx, ty, RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT)) {
@@ -289,8 +299,8 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
       if (kb.is_cancelled()) {
         // user pressed back/cancel, return to network list
+        display_needs_redraw = true;
         current_state = STATE_LIST;
-        list_needs_redraw = true;
         kb.clear();  // clears buffer and cancelled flag
       } else if (kb.is_complete()) {
         const char* password = kb.get_text();
@@ -298,6 +308,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
         connect(scanned_networks[selected_network].ssid, typed_ssid_password);  // initiates wifi connection
+        display_needs_redraw = true;
         current_state = STATE_CONNECTING;                                       // show connecting animation
         kb.reset_complete();
       }
@@ -309,8 +320,8 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
       if (kb.is_cancelled()) {
         // user pressed back/cancel, return to network list
+        display_needs_redraw = true;
         current_state = STATE_LIST;
-        list_needs_redraw = true;
         kb.clear();  // clears buffer and cancelled flag
       } else if (kb.is_complete()) {
         const char* ssid = kb.get_text();
@@ -340,6 +351,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
         connect(manual_ssid, typed_ssid_password);  // initiates wifi connection
+        display_needs_redraw = true;
         current_state = STATE_CONNECTING;           // show connecting animation
         kb.reset_complete();
       }
@@ -348,7 +360,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
     case STATE_ERROR: {
       if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
-        list_needs_redraw = true;
+        display_needs_redraw = true;
         current_state = STATE_LIST;
       }
       break;
@@ -421,8 +433,10 @@ void WifiConfigScreen::draw_message(uint16_t color,
                                     uint16_t x,
                                     uint16_t y,
                                     lgfx::LGFX_Device* lcd) {
-  // clear screen
-  lcd->fillScreen(COLOR_BLACK);
+  if (display_needs_redraw) {
+    lcd->fillScreen(COLOR_BLACK);
+    display_needs_redraw = false;
+  }
 
   lcd->setTextSize(2);
 
@@ -524,15 +538,16 @@ void WifiConfigScreen::draw_network_list_header(lgfx::LGFX_Device* lcd) {
 
   } else {
     const int right_margin = 5;
-    int no_conn_len = strlen("No conexion");
+    int no_conn_len = strlen("No connection");
     lcd->setCursor(SCREEN_WIDTH - right_margin - (no_conn_len * 6) - 10, HEADER_NETWORK_Y);
-    lcd->print("No conexion");
+    lcd->fillRect(SCREEN_WIDTH - right_margin - (no_conn_len * 6) - 10, HEADER_NETWORK_Y,(no_conn_len * 6), HEADER_NETWORK_Y, COLOR_BLACK);
+    lcd->print("No connection");
   }
 }
 void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
-  if (list_needs_redraw) {
+  if (display_needs_redraw) {
     lcd->fillScreen(COLOR_BLACK);
-    list_needs_redraw = false;
+    display_needs_redraw = false;
   }
 
   // check if we have networks to display
