@@ -104,42 +104,32 @@
 #define TOUCH_Y_MIN 0
 #define TOUCH_Y_MAX 319
 
-// system configuration
-
-// serial debug
-#define SERIAL_BAUD_RATE 115200
-
-// nvs storage keys
-#define NVS_NAMESPACE "btcminer"
-#define NVS_KEY_WIFI_SSID "wifi_ssid"
-#define NVS_KEY_WIFI_PASS "wifi_pass"
-#define NVS_KEY_ACTIVE_POOL "active_pool"
-#define NVS_KEY_ACTIVE_WALLET "active_wallet"
-
 // network timing
 #define WIFI_CONNECT_TIMEOUT_MS 10000     // wifi connect timeout (ms)
-#define POOL_CONNECT_TIMEOUT_MS 5000      // pool connect timeout (ms)
-#define POOL_RECONNECT_DELAY_MS 30000     // pool reconnect delay (ms)
 
-// text constants
+//ui
 
-// app info
-#define APP_NAME "btc solo miner"
+// header area
+#define HEADER_HEIGHT 39
+#define HEADER_TEXT_X 40
+#define HEADER_TEXT_Y 13
+#define HEADER_NETWORK_Y 10
 
-// ui text constants
-#define TEXT_WIFI_SSID "enter wifi ssid:"
-#define TEXT_WIFI_PASSWORD "enter wifi password:"
-#define TEXT_POOL_URL "enter pool url:"
-#define TEXT_POOL_PORT "enter pool port:"
-#define TEXT_WALLET_ADDRESS "enter wallet address:"
-#define TEXT_CONNECTING "connecting..."
-#define TEXT_CONNECTED "connected"
-#define TEXT_ERROR "error"
-#define TEXT_MINING "mining"
-#define TEXT_HASHRATE "hashrate:"
-#define TEXT_TEMPERATURE "temp:"
-#define TEXT_SHARES_FOUND "shares found:"
-#define TEXT_SHARES_ACCEPTED "accepted:"
-#define TEXT_SHARES_REJECTED "rejected:"
+// back button at top
+#define BACK_BUTTON_X 2
+#define BACK_BUTTON_Y 3
+#define BACK_BUTTON_TEXT_X 5
+#define BACK_BUTTON_TEXT_Y 11
+#define BACK_BUTTON_HEIGHT 30
+#define BACK_BUTTON_W 30
+
+// network list items
+#define LIST_START_X 5
+#define LIST_START_Y 40
+#define ITEM_HEIGHT 40
+#define ITEMS_PER_PAGE 4
+#define ITEM_GAP 2
+
+
 
 #endif

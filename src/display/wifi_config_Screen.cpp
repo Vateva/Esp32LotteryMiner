@@ -1,18 +1,6 @@
 // wifi_config_screen.cpp
 #include "wifi_config_screen.h"
 
-// header area
-const uint16_t HEADER_HEIGHT = 39;
-const uint16_t HEADER_TEXT_X = 40;
-const uint16_t HEADER_TEXT_Y = 13;
-const uint16_t HEADER_NETWORK_Y = 10;
-
-// network list items
-const uint16_t LIST_START_X = 5;
-const uint16_t LIST_START_Y = 40;
-const uint16_t ITEM_HEIGHT = 40;
-const uint16_t ITEMS_PER_PAGE = 4;
-const uint16_t ITEM_GAP = 2;
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 209;
@@ -37,13 +25,7 @@ const uint16_t MANUAL_BUTTON_X = RESCAN_BUTTON_X + RESCAN_BUTTON_W + BUTTON_GAP;
 const uint16_t MANUAL_BUTTON_W = 76;                        // slightly wider to fill remaining space
 const uint16_t MANUAL_BUTTON_TEXT_X = MANUAL_BUTTON_X + 5;  // 244
 
-// back button at top
-const uint16_t BACK_BUTTON_X = 2;
-const uint16_t BACK_BUTTON_Y = 3;
-const uint16_t BACK_BUTTON_TEXT_X = 5;
-const uint16_t BACK_BUTTON_TEXT_Y = 11;
-const uint16_t BACK_BUTTON_HEIGHT = 30;
-const uint16_t BACK_BUTTON_W = 30;
+
 
 // strengh barrs parameters
 const uint16_t BARR_W = 2;
