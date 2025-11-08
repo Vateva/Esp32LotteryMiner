@@ -6,7 +6,7 @@
 WalletConfigScreen::WalletConfigScreen() {
   // initialize state variables
   need_redraw = true;
-  item_selected_index = -1;
+  selected_item_index = -1;
   last_touch_time = 0;
 
   // initialize all 4 wallet slots to empty/default state
@@ -33,11 +33,24 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
 
 // private drawing methods
 void WalletConfigScreen::draw_header(lgfx::LGFX_Device* lcd) {
+  // back button
+  draw_back_button(lcd);
 
+  // draw header text
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setTextSize(2);
+  lcd->setCursor(HEADER_TEXT_X, HEADER_TEXT_Y);
+  lcd->print("Wallets");
 }
 
 void WalletConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setColor(COLOR_WHITE);
+  lcd->setTextSize(2);
 
+  lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
+  lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
+  lcd->print("<-");
 }
 
 void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
@@ -49,10 +62,6 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t y, lgfx::LGFX_De
 }
 
 void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
-
-}
-
-void WalletConfigScreen::draw_popup_menu_buttons(lgfx::LGFX_Device* lcd) {
 
 }
 
