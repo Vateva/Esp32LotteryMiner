@@ -49,15 +49,7 @@ WifiConfigScreen::WifiConfigScreen() {
 
 // initiates async wifi network scan
 void WifiConfigScreen::start_scan() {
-  // Disconnect from any current connection attempt
-  // Set WiFi to station mode (required for scanning)
-  WiFi.mode(WIFI_STA);
 
-  WiFi.disconnect(true);  // true = also clear saved AP settings in this session
-  delay(100);             // Give the WiFi module time to fully disconnect
-
-  WiFi.scanDelete();      // clean up any previous scan results
-  selected_network = -1;  // reset selected network tracking
   display_needs_redraw = true;
   current_state = STATE_SCANNING;
   WiFi.scanNetworks(true, false);
