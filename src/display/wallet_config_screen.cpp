@@ -4,7 +4,7 @@
 // constructor
 WalletConfigScreen::WalletConfigScreen() {
   // initialize state variables
-  need_redraw = true;
+  display_needs_redraw = true;
   selected_item_index = -1;
   last_touch_time = 0;
 
@@ -48,7 +48,17 @@ void WalletConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
   lcd->print("<-");
 }
 
-void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {}
+void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
+    if (display_needs_redraw) {
+    lcd->fillScreen(COLOR_BLACK);
+    display_needs_redraw = false;
+  }
+
+    for (int i = 0; i < TOTAL_SLOTS; i++) {
+      uint16_t item_y = LIST_START_Y + (i * (ITEM_HEIGHT + ITEM_GAP));
+      draw_list_item(i, item_y, lcd);
+    }
+}
 
 void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t y, lgfx::LGFX_Device* lcd) {
   // draw rectangle
