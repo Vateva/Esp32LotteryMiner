@@ -160,67 +160,43 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, l
 void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   // clear popup menu area
   lcd->fillRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLACK);
-  // draw popupmenu frame
+  // draw popup menu frame
   lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT);
 
   // draw buttons
   lcd->setTextColor(COLOR_WHITE);
   lcd->setColor(COLOR_WHITE);
   lcd->setTextSize(1);
+  
   if (wallets[selected_item_index].is_configured) {
-    // draw select/edit/delete/back
+    // draw select/edit/delete/back buttons
+    const char* button_labels[] = {"Select", "Edit", "Delete", "Back"};
+    
     for (int i = 0; i < 4; i++) {
       lcd->drawRect(POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
                     POPUP_MENU_BUTTON_Y,
                     POPUP_MENU_BUTTON_WIDTH,
                     POPUP_MENU_BUTTON_HEIGHT);
-      switch (i) {
-        case 0:
-          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                         POPUP_MENU_BUTTON_TEXT_Y);
-          lcd->print("Select");
-          break;
-        case 1:
-          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                         POPUP_MENU_BUTTON_TEXT_Y);
-          lcd->print("Edit");
-          break;
-        case 2:
-          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                         POPUP_MENU_BUTTON_TEXT_Y);
-          lcd->print("Delete");
-          break;
-        case 3:
-          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                         POPUP_MENU_BUTTON_TEXT_Y);
-          lcd->print("Back");
-          break;
-        default:
-          break;
-      }
+      
+      lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                     POPUP_MENU_BUTTON_TEXT_Y);
+      lcd->print(button_labels[i]);
     }
-
   } else {
-    // draw add/back
-    for (int i = 1; i < 3; i++) {
+    // draw add/back buttons centered
+    const char* button_labels[] = {"Add", "Back"};
+    
+    for (int i = 1; i < 3; i++) {//buttons centered in positions 1-2
+
+      
       lcd->drawRect(POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
                     POPUP_MENU_BUTTON_Y,
                     POPUP_MENU_BUTTON_WIDTH,
                     POPUP_MENU_BUTTON_HEIGHT);
-      switch (i) {
-        case 1:
-          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_TEXT_X) + (i * POPUP_MENU_BUTTON_GAP),
-                         POPUP_MENU_BUTTON_TEXT_Y);
-          lcd->print("Add");
-          break;
-        case 2:
-          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_TEXT_X) + (i * POPUP_MENU_BUTTON_GAP),
-                         POPUP_MENU_BUTTON_TEXT_Y);
-          lcd->print("Back");
-          break;
-        default:
-          break;
-      }
+      
+      lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                     POPUP_MENU_BUTTON_TEXT_Y);
+      lcd->print(button_labels[i]);
     }
   }
 }
