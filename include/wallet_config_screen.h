@@ -51,7 +51,7 @@ class WalletConfigScreen {
   void draw_back_button(lgfx::LGFX_Device* lcd);
   void draw_header(lgfx::LGFX_Device* lcd);
   void draw_list(lgfx::LGFX_Device* lcd);
-  void draw_list_item(uint8_t index, uint16_t y, lgfx::LGFX_Device* lcd);
+  void draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_popup_menu(lgfx::LGFX_Device* lcd);
 
   // touch detection helpers

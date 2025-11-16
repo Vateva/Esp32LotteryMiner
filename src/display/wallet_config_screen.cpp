@@ -21,10 +21,62 @@ WalletConfigScreen::WalletConfigScreen() {
 }
 
 // main draw function - called when screen needs to be rendered
-void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {}
+void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {
+  switch (current_state) {
+    case STATE_LIST:
+      draw_header(lcd);
+      draw_list(lcd);
+      break;
+
+    case STATE_ENTERING_NAME:
+      kb.draw(lcd);
+      break;
+
+    case STATE_ENTERING_ADDRESS:
+      kb.draw(lcd);
+      break;
+
+    case STATE_POPUP_MENU:
+      draw_header(lcd);
+      draw_list(lcd);
+      draw_popup_menu(lcd);
+      break;
+  }
+}
 
 // handle touch input
-void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {}
+void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
+  // debounce
+  unsigned long current_time = millis();
+  if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
+    return;
+  }
+  // update debounce timer
+  last_touch_time = current_time;
+  switch (current_state) {
+    case STATE_LIST:
+      // handle touches in list view
+      for (int i = 0; i < TOTAL_SLOTS; i++) {
+        uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
+        if (is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
+          current_state = STATE_POPUP_MENU;
+        }
+      }
+      break;
+
+    case STATE_ENTERING_NAME:
+      // handle keyboard input for name
+      break;
+
+    case STATE_ENTERING_ADDRESS:
+      // handle keyboard input for address
+      break;
+
+    case STATE_POPUP_MENU:
+      // handle popup menu button touches
+      break;
+  }
+}
 
 // private drawing methods
 void WalletConfigScreen::draw_header(lgfx::LGFX_Device* lcd) {
@@ -49,18 +101,18 @@ void WalletConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
 }
 
 void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
-    if (display_needs_redraw) {
+  if (display_needs_redraw) {
     lcd->fillScreen(COLOR_BLACK);
     display_needs_redraw = false;
   }
 
-    for (int i = 0; i < TOTAL_SLOTS; i++) {
-      uint16_t item_y = LIST_START_Y + (i * (ITEM_HEIGHT + ITEM_GAP));
-      draw_list_item(i, item_y, lcd);
-    }
+  for (int i = 0; i < TOTAL_SLOTS; i++) {
+    uint16_t item_y = LIST_START_Y + (i * (ITEM_HEIGHT + ITEM_GAP));
+    draw_list_item(i, LIST_START_X, item_y, lcd);
+  }
 }
 
-void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t y, lgfx::LGFX_Device* lcd) {
+void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {
   // draw rectangle
   lcd->drawRect(LIST_START_X, y, SCREEN_WIDTH - (2 * LIST_START_X), ITEM_HEIGHT);
 
@@ -105,7 +157,73 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t y, lgfx::LGFX_De
   }
 }
 
-void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {}
+void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
+  // clear popup menu area
+  lcd->fillRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLACK);
+  // draw popupmenu frame
+  lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT);
+
+  // draw buttons
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setColor(COLOR_WHITE);
+  lcd->setTextSize(1);
+  if (wallets[selected_item_index].is_configured) {
+    // draw select/edit/delete/back
+    for (int i = 0; i < 4; i++) {
+      lcd->drawRect(POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                    POPUP_MENU_BUTTON_Y,
+                    POPUP_MENU_BUTTON_WIDTH,
+                    POPUP_MENU_BUTTON_HEIGHT);
+      switch (i) {
+        case 0:
+          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                         POPUP_MENU_BUTTON_TEXT_Y);
+          lcd->print("Select");
+          break;
+        case 1:
+          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                         POPUP_MENU_BUTTON_TEXT_Y);
+          lcd->print("Edit");
+          break;
+        case 2:
+          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                         POPUP_MENU_BUTTON_TEXT_Y);
+          lcd->print("Delete");
+          break;
+        case 3:
+          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                         POPUP_MENU_BUTTON_TEXT_Y);
+          lcd->print("Back");
+          break;
+        default:
+          break;
+      }
+    }
+
+  } else {
+    // draw add/back
+    for (int i = 1; i < 3; i++) {
+      lcd->drawRect(POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                    POPUP_MENU_BUTTON_Y,
+                    POPUP_MENU_BUTTON_WIDTH,
+                    POPUP_MENU_BUTTON_HEIGHT);
+      switch (i) {
+        case 1:
+          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_TEXT_X) + (i * POPUP_MENU_BUTTON_GAP),
+                         POPUP_MENU_BUTTON_TEXT_Y);
+          lcd->print("Add");
+          break;
+        case 2:
+          lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_TEXT_X) + (i * POPUP_MENU_BUTTON_GAP),
+                         POPUP_MENU_BUTTON_TEXT_Y);
+          lcd->print("Back");
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
 
 // Utility methods
 bool WalletConfigScreen::is_point_in_rect(uint16_t touch_x,

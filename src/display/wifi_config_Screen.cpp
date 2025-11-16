@@ -4,7 +4,7 @@
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 209;
-const uint16_t BOTTOM_BUTTONS_TEXT_Y = 219;
+const uint16_t BOTTOM_BUTTONS_TEXT_Y = BOTTOM_BUTTONS_Y + 10;//219
 const uint16_t BUTTON_HEIGHT = 30;
 
 const uint16_t BUTTON_GAP = 5;
