@@ -35,6 +35,7 @@ class WalletConfigScreen {
   wallet_screen_state_t current_state;
   int8_t selected_item_index;  // -1 = none, 0-3 = selected slot
   bool display_needs_redraw;
+  bool popup_needs_redraw;
 
   // temporary storage for wallet being edited
   char temp_name[MAX_WALLET_NAME_LENGTH + 1];

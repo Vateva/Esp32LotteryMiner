@@ -5,6 +5,7 @@
 WalletConfigScreen::WalletConfigScreen() {
   // initialize state variables
   display_needs_redraw = true;
+  popup_needs_redraw = false;
   selected_item_index = -1;
   last_touch_time = 0;
 
@@ -16,67 +17,80 @@ WalletConfigScreen::WalletConfigScreen() {
     wallets[i].is_configured = false;
   }
 
-  // load saved wallets from NVS (if any exist)
+  // load saved wallets from nvs if any exist
   load_from_nvs();
 }
 
-// main draw function - called when screen needs to be rendered
+// main draw function called every loop to render current state
 void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
     case STATE_LIST:
+      // draw wallet list view with header
       draw_header(lcd);
       draw_list(lcd);
       break;
 
     case STATE_ENTERING_NAME:
+      // show keyboard for wallet name input
       kb.draw(lcd);
       break;
 
     case STATE_ENTERING_ADDRESS:
+      // show keyboard for wallet address input
       kb.draw(lcd);
       break;
 
     case STATE_POPUP_MENU:
-      draw_header(lcd);
-      draw_list(lcd);
-      draw_popup_menu(lcd);
+      // only redraw popup once to prevent flickering
+      if (popup_needs_redraw) {
+        draw_header(lcd);
+        draw_list(lcd);
+        draw_popup_menu(lcd);
+        popup_needs_redraw = false;
+      }
       break;
   }
 }
 
-// handle touch input
+// handle touch input and route to appropriate state handler
 void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
-  // debounce
+  // debounce touch input to prevent multiple rapid triggers
   unsigned long current_time = millis();
   if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
     return;
   }
   // update debounce timer
   last_touch_time = current_time;
+
   switch (current_state) {
     case STATE_LIST:
-      // handle touches in list view
+      // check if any wallet item was touched
       for (int i = 0; i < TOTAL_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
         if (is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
+          // wallet item touched open popup menu
           selected_item_index = i;
+          popup_needs_redraw = true;
           current_state = STATE_POPUP_MENU;
         }
       }
+      // check if back button was touched
       if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
-        // HERE WE WILL GET OUT OF THE WALLETCONFIG INTERFACE
+        // exit wallet config interface
       }
       break;
 
     case STATE_ENTERING_NAME:
+      // pass touch to keyboard for name input
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
-        // user pressed back/cancel, return to list
+        // user cancelled return to list
         display_needs_redraw = true;
         current_state = STATE_LIST;
-        kb.clear();  // clears buffer and cancelled flag
+        kb.clear();
       } else if (kb.is_complete()) {
+        // name entered successfully save to temp and move to address entry
         const char* wallet_name = kb.get_text();
         strncpy(temp_name, wallet_name, MAX_WALLET_NAME_LENGTH);
         temp_name[MAX_WALLET_NAME_LENGTH] = '\0';
@@ -90,22 +104,40 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       break;
 
     case STATE_ENTERING_ADDRESS:
+      // pass touch to keyboard for address input
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
-        // user pressed back/cancel, return to entering name
+        // user cancelled go back to name entry
         display_needs_redraw = true;
         current_state = STATE_ENTERING_NAME;
-        kb.clear();  // clears buffer and cancelled flag
+        kb.clear();
       } else if (kb.is_complete()) {
+        // address entered successfully save wallet data
         const char* wallet_address = kb.get_text();
         strncpy(temp_address, wallet_address, MAX_WALLET_ADDRESS_LENGTH);
         temp_address[MAX_WALLET_ADDRESS_LENGTH] = '\0';
 
+        // copy temp data to actual wallet slot
         strcpy(wallets[selected_item_index].name, temp_name);
         strcpy(wallets[selected_item_index].address, temp_address);
         wallets[selected_item_index].is_configured = true;
 
+        // check if any other wallet is already configured
+        bool has_other_wallets = false;
+        for (int j = 0; j < 4; j++) {
+          if (j != selected_item_index && wallets[j].is_configured) {
+            has_other_wallets = true;
+            break;
+          }
+        }
+
+        // if this is the first wallet make it active
+        if (!has_other_wallets) {
+          wallets[selected_item_index].is_active = true;
+        }
+
+        // save to nvs and return to list
         save_to_nvs(selected_item_index);
         display_needs_redraw = true;
         current_state = STATE_LIST;
@@ -115,8 +147,8 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
 
     case STATE_POPUP_MENU:
       if (wallets[selected_item_index].is_configured) {
+        // configured wallet has 4 buttons: select edit delete back
         for (int i = 0; i < 4; i++) {
-          // detect touch select/edit/delete/back buttons
           if (is_point_in_rect(tx,
                                ty,
                                POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
@@ -125,23 +157,26 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                                POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 0:
+                // select button: deactivate all wallets then activate this one
                 for (int j = 0; j < 4; j++) {
                   wallets[j].is_active = false;
                 }
-
                 wallets[selected_item_index].is_active = true;
                 current_state = STATE_LIST;
                 display_needs_redraw = true;
                 break;
-              case 1:
-                current_state = STATE_ENTERING_NAME;
 
+              case 1:
+                // edit button: start keyboard flow to edit wallet
+                current_state = STATE_ENTERING_NAME;
                 kb.clear();
                 kb.set_label("Enter wallet name");
-                kb.set_max_length(MAX_WALLET_ADDRESS_LENGTH);
+                kb.set_max_length(MAX_WALLET_NAME_LENGTH);
                 kb.reset_complete();
                 break;
+
               case 2:
+                // delete button: clear wallet data and return to list
                 wallets[selected_item_index].name[0] = '\0';
                 wallets[selected_item_index].address[0] = '\0';
                 wallets[selected_item_index].is_active = false;
@@ -149,10 +184,13 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                 current_state = STATE_LIST;
                 display_needs_redraw = true;
                 break;
+
               case 3:
+                // back button: close popup return to list
                 current_state = STATE_LIST;
                 display_needs_redraw = true;
                 break;
+
               default:
                 break;
             }
@@ -160,8 +198,8 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
         }
 
       } else {
-        // detect touch in add/cancel buttons
-        for (int i = 1; i < 3; i++) {  // buttons centered in positions 1-2
+        // empty wallet has 2 buttons: add and back centered in positions 1 and 2
+        for (int i = 1; i < 3; i++) {
           if (is_point_in_rect(tx,
                                ty,
                                POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
@@ -170,16 +208,20 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                                POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 1:
+                // add button: start keyboard flow to create new wallet
                 current_state = STATE_ENTERING_NAME;
-
                 kb.clear();
                 kb.set_label("Enter wallet name");
-                kb.set_max_length(MAX_WALLET_ADDRESS_LENGTH);
+                kb.set_max_length(MAX_WALLET_NAME_LENGTH);
                 kb.reset_complete();
                 break;
+
               case 2:
+                // back button: close popup return to list
                 current_state = STATE_LIST;
+                display_needs_redraw = true;
                 break;
+
               default:
                 break;
             }
@@ -189,134 +231,142 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       break;
   }
 }
-// private drawing methods
+
+// draw header with back button and title
 void WalletConfigScreen::draw_header(lgfx::LGFX_Device* lcd) {
-  // back button
   draw_back_button(lcd);
 
-  // draw header text
+  // draw title text
   lcd->setTextColor(COLOR_WHITE);
   lcd->setTextSize(2);
   lcd->setCursor(HEADER_TEXT_X, HEADER_TEXT_Y);
   lcd->print("Wallets");
 }
 
+// draw back button in top left corner
 void WalletConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
   lcd->setTextColor(COLOR_WHITE);
   lcd->setColor(COLOR_WHITE);
   lcd->setTextSize(2);
 
+  // draw button rectangle
   lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
+
+  // draw arrow text
   lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
   lcd->print("<-");
 }
 
+// draw list of all 4 wallet slots
 void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
+  // clear screen if needed
   if (display_needs_redraw) {
     lcd->fillScreen(COLOR_BLACK);
     display_needs_redraw = false;
   }
 
+  // draw each wallet item
   for (int i = 0; i < TOTAL_SLOTS; i++) {
     uint16_t item_y = LIST_START_Y + (i * (ITEM_HEIGHT + ITEM_GAP));
     draw_list_item(i, LIST_START_X, item_y, lcd);
   }
 }
 
+// draw individual wallet item at given position
 void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {
-  // draw rectangle
-  lcd->drawRect(LIST_START_X, y, SCREEN_WIDTH - (2 * LIST_START_X), ITEM_HEIGHT);
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setTextSize(2);
+
+  // draw item border rectangle
+  lcd->drawRect(LIST_START_X, y, SCREEN_WIDTH - (2 * LIST_START_X), ITEM_HEIGHT, COLOR_WHITE);
 
   if (!wallets[index].is_configured) {
-    // empty slot "+   Add wallet"
-    lcd->setTextColor(COLOR_WHITE);
-    lcd->setTextSize(2);
+    // empty slot show add prompt
     lcd->setCursor(LIST_START_X + 3, y + 12);
-    lcd->print("+   Add wallet");
+    lcd->print("  + Add wallet");
   } else {
-    // configured slot - show name on first line
+    // configured slot show wallet name on first line
     lcd->setCursor(LIST_START_X + 3, y + 5);
-    lcd->setTextSize(2);
-    lcd->print(wallets[index].name);  // or truncate if too long
+    lcd->print(wallets[index].name);
 
-    // show truncated address on second line, smaller text
+    // show truncated address on second line with smaller text
     lcd->setTextSize(1);
     lcd->setCursor(LIST_START_X + 3, y + 25);
 
-    char truncated[16];
+    // create truncated version: first 10 chars + ... + last 10 chars
+    char truncated[24];
+    strncpy(truncated, wallets[index].address, 10);
+    truncated[10] = '.';
+    truncated[11] = '.';
+    truncated[12] = '.';
 
-    // copy first 4 chars
-    strncpy(truncated, wallets[index].address, 6);
-
-    // add dots at positions 4, 5, 6
-    truncated[6] = '.';
-    truncated[7] = '.';
-    truncated[8] = '.';
-
-    // find actual address length
     int addr_len = strlen(wallets[index].address);
-
-    // copy last 4 chars from the end of the actual address
-    strncpy(truncated + 9, wallets[index].address + addr_len - 6, 6);
-
-    // null terminate
-    truncated[15] = '\0';
+    strncpy(truncated + 13, wallets[index].address + addr_len - 10, 10);
+    truncated[23] = '\0';
 
     lcd->print(truncated);
   }
 
-  // if active wallet, maybe draw a star or highlight
+  // show active indicator if this wallet is selected
   if (wallets[index].is_active) {
     lcd->setCursor(SCREEN_WIDTH - (8 * LIST_START_X), y + 12);
     lcd->setTextSize(2);
-    lcd->print("✓");
+    lcd->setTextColor(COLOR_GREEN);
+    lcd->print("x");
   }
 }
 
+// draw popup menu overlay with buttons for current wallet
 void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
-  // clear popup menu area
+  // clear and draw popup background
   lcd->fillRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLACK);
-  // draw popup menu frame
-  lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT);
+  lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLUE2);
 
-  // draw buttons
+  // setup text properties for buttons
   lcd->setTextColor(COLOR_WHITE);
   lcd->setColor(COLOR_WHITE);
   lcd->setTextSize(1);
 
   if (wallets[selected_item_index].is_configured) {
-    // draw select/edit/delete/back buttons
+    // configured wallet shows 4 buttons in a row
     const char* button_labels[] = {"Select", "Edit", "Delete", "Back"};
 
     for (int i = 0; i < 4; i++) {
+      // draw button rectangle
       lcd->drawRect(POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
                     POPUP_MENU_BUTTON_Y,
                     POPUP_MENU_BUTTON_WIDTH,
                     POPUP_MENU_BUTTON_HEIGHT);
 
+      // draw button label
       lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
                      POPUP_MENU_BUTTON_TEXT_Y);
       lcd->print(button_labels[i]);
     }
   } else {
-    // draw add/back buttons centered
+    // empty wallet shows 2 centered buttons
     const char* button_labels[] = {"Add", "Back"};
 
-    for (int i = 1; i < 3; i++) {  // buttons centered in positions 1-2
+    for (int i = 0; i < 2; i++) {
+      // calculate position to center buttons in positions 1 and 2
+      int button_pos = i + 1;
 
-      lcd->drawRect(POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+      // draw button rectangle
+      lcd->drawRect(POPUP_MENU_BUTTON_X + (button_pos * POPUP_MENU_BUTTON_WIDTH) + (button_pos * POPUP_MENU_BUTTON_GAP),
                     POPUP_MENU_BUTTON_Y,
                     POPUP_MENU_BUTTON_WIDTH,
                     POPUP_MENU_BUTTON_HEIGHT);
 
-      lcd->setCursor(POPUP_MENU_BUTTON_TEXT_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                     POPUP_MENU_BUTTON_TEXT_Y);
+      // draw button label
+      lcd->setCursor(
+          POPUP_MENU_BUTTON_TEXT_X + (button_pos * POPUP_MENU_BUTTON_WIDTH) + (button_pos * POPUP_MENU_BUTTON_GAP),
+          POPUP_MENU_BUTTON_TEXT_Y);
       lcd->print(button_labels[i]);
     }
   }
 }
 
-// Utility methods
+// check if touch coordinates fall within rectangle bounds
 bool WalletConfigScreen::is_point_in_rect(uint16_t touch_x,
                                           uint16_t touch_y,
                                           uint16_t rect_x,
@@ -326,7 +376,8 @@ bool WalletConfigScreen::is_point_in_rect(uint16_t touch_x,
   return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
 }
 
-// NVS storage methods
+// save wallet data to nvs storage
 void WalletConfigScreen::save_to_nvs(uint8_t index) {}
 
+// load all wallet data from nvs storage
 void WalletConfigScreen::load_from_nvs() {}
