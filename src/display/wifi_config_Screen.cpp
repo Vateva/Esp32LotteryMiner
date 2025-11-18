@@ -36,6 +36,10 @@ const uint16_t BARR_2_X_OFFSET = 3;
 const uint16_t BARR_3_X_OFFSET = 6;
 const uint16_t BARR_4_X_OFFSET = 9;
 
+// ----------------------------------------------------------------------------
+// Constructor
+// ----------------------------------------------------------------------------
+
 // constructor - initialize screen state
 WifiConfigScreen::WifiConfigScreen() {
   current_state = STATE_SCANNING;
@@ -47,67 +51,11 @@ WifiConfigScreen::WifiConfigScreen() {
   saved_ssid[0] = '\0';
   saved_password[0] = '\0';
 }
-bool WifiConfigScreen::try_auto_connect() {
-  if (strlen(saved_ssid) > 0) {
-    for (int i = 0; i < scanned_networks_amount; i++) {
-      if (strcmp(scanned_networks[i].ssid, saved_ssid) == 0) {
-        current_state = STATE_CONNECTING;  // show connecting animation
-        connect(saved_ssid, saved_password);
-        display_needs_redraw = true;
 
-        return true;  // found network to connect to
-      }
-    }
-  }
-  return false;
-};
+// ----------------------------------------------------------------------------
+// Public Interface Functions (Main Loop)
+// ----------------------------------------------------------------------------
 
-// initiates async wifi network scan
-void WifiConfigScreen::start_scan() {
-  display_needs_redraw = true;
-  current_state = STATE_SCANNING;
-  WiFi.scanNetworks(true, false);
-}
-// processes wifi scan results - sorts by signal strength and stores top 20
-bool WifiConfigScreen::process_scan_results(int networks_found) {
-  networks_found = min(networks_found, 50);
-
-  // temporary array for all found networks
-  network_info_t temp_networks[50];
-
-  // copy data from wifi scan results
-  for (int i = 0; i < networks_found; i++) {
-    strncpy(temp_networks[i].ssid, WiFi.SSID(i).c_str(), MAX_SSID_LENGTH);
-    temp_networks[i].ssid[MAX_SSID_LENGTH] = '\0';
-    temp_networks[i].rssi = WiFi.RSSI(i);
-    temp_networks[i].encryption = WiFi.encryptionType(i);
-  }
-
-  // bubble sort networks by signal strength (strongest first)
-  for (int i = 0; i < networks_found - 1; i++) {
-    for (int j = 0; j < networks_found - i - 1; j++) {
-      if (temp_networks[j].rssi < temp_networks[j + 1].rssi) {
-        network_info_t temp_swap = temp_networks[j + 1];
-        temp_networks[j + 1] = temp_networks[j];
-        temp_networks[j] = temp_swap;
-      }
-    }
-  }
-
-  // copy top 20 to scanned_networks array
-  int networks_to_copy = min(networks_found, 20);
-
-  for (int i = 0; i < networks_to_copy; i++) {
-    strncpy(scanned_networks[i].ssid, temp_networks[i].ssid, MAX_SSID_LENGTH);
-    scanned_networks[i].ssid[MAX_SSID_LENGTH] = '\0';
-    scanned_networks[i].rssi = temp_networks[i].rssi;
-    scanned_networks[i].encryption = temp_networks[i].encryption;
-  }
-
-  scanned_networks_amount = networks_to_copy;
-
-  return try_auto_connect();
-}
 // main draw method - renders current state
 void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
@@ -126,7 +74,6 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         draw_message(COLOR_YELLOW, "Scanning networks", true, true, 120, 120, lcd);
         draw_back_button(lcd);
       } else if (scan_status >= 0) {
-
         // scan completed - process results
         int networks_found = max(scan_status, 0);
         bool is_autoconnecting = false;  // flag to track autoconnect status
@@ -222,9 +169,6 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       break;
   }
 }
-
-// placeholder method
-void WifiConfigScreen::clear() {}
 
 void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
   // debounce
@@ -367,6 +311,21 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
     }
   }
 }
+
+// initiates async wifi network scan
+void WifiConfigScreen::start_scan() {
+  display_needs_redraw = true;
+  current_state = STATE_SCANNING;
+  WiFi.scanNetworks(true, false);
+}
+
+// placeholder method
+void WifiConfigScreen::clear() {}
+
+// ----------------------------------------------------------------------------
+// Internal Logic (WiFi, State Management)
+// ----------------------------------------------------------------------------
+
 void WifiConfigScreen::connect(const char* ssid, const char* password) {
   // store what we're connecting with
   strncpy(saved_ssid, ssid, MAX_SSID_LENGTH);
@@ -379,59 +338,65 @@ void WifiConfigScreen::connect(const char* ssid, const char* password) {
   connection_start_time = millis();
 }
 
-// drawing strength bars
-void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi,
-                                                 uint16_t x,
-                                                 uint16_t y,
-                                                 bool small,
-                                                 lgfx::LGFX_Device* lcd) {
-  // scale factor for small bars
-  float scale = small ? 0.7 : 1.0;
+bool WifiConfigScreen::try_auto_connect() {
+  if (strlen(saved_ssid) > 0) {
+    for (int i = 0; i < scanned_networks_amount; i++) {
+      if (strcmp(scanned_networks[i].ssid, saved_ssid) == 0) {
+        current_state = STATE_CONNECTING;  // show connecting animation
+        connect(saved_ssid, saved_password);
+        display_needs_redraw = true;
 
-  // calculate scaled dimensions
-  uint16_t bar_w = BARR_W * scale;
-  uint16_t bar_1_h = BARR_1_H * scale;
-  uint16_t bar_2_h = BARR_2_H * scale;
-  uint16_t bar_3_h = BARR_3_H * scale;
-  uint16_t bar_4_h = BARR_4_H * scale;
-  uint16_t offset_2 = BARR_2_X_OFFSET * scale;
-  uint16_t offset_3 = BARR_3_X_OFFSET * scale;
-  uint16_t offset_4 = BARR_4_X_OFFSET * scale;
-
-  // vertical reference point
-  uint16_t y_ref = small ? y : (y + ITEM_HEIGHT / 2);
-
-  if (rssi < -85) {
-    lcd->setColor(COLOR_WHITE);
-    lcd->drawRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h);
-    lcd->drawRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h);
-    lcd->drawRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h);
-    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
-  } else if (rssi >= -85 && rssi < -75) {
-    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_RED);
-    lcd->setColor(COLOR_WHITE);
-    lcd->drawRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h);
-    lcd->drawRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h);
-    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
-  } else if (rssi >= -75 && rssi < -65) {
-    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_ORANGE);
-    lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_ORANGE);
-    lcd->setColor(COLOR_WHITE);
-    lcd->drawRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h);
-    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
-  } else if (rssi >= -65 && rssi < -55) {
-    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_DARKGREEN);
-    lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_DARKGREEN);
-    lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_DARKGREEN);
-    lcd->setColor(COLOR_WHITE);
-    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
-  } else if (rssi >= -45) {
-    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_GREEN);
-    lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_GREEN);
-    lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_GREEN);
-    lcd->fillRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h, COLOR_GREEN);
+        return true;  // found network to connect to
+      }
+    }
   }
+  return false;
+};
+
+// processes wifi scan results - sorts by signal strength and stores top 20
+bool WifiConfigScreen::process_scan_results(int networks_found) {
+  networks_found = min(networks_found, 50);
+
+  // temporary array for all found networks
+  network_info_t temp_networks[50];
+
+  // copy data from wifi scan results
+  for (int i = 0; i < networks_found; i++) {
+    strncpy(temp_networks[i].ssid, WiFi.SSID(i).c_str(), MAX_SSID_LENGTH);
+    temp_networks[i].ssid[MAX_SSID_LENGTH] = '\0';
+    temp_networks[i].rssi = WiFi.RSSI(i);
+    temp_networks[i].encryption = WiFi.encryptionType(i);
+  }
+
+  // bubble sort networks by signal strength (strongest first)
+  for (int i = 0; i < networks_found - 1; i++) {
+    for (int j = 0; j < networks_found - i - 1; j++) {
+      if (temp_networks[j].rssi < temp_networks[j + 1].rssi) {
+        network_info_t temp_swap = temp_networks[j + 1];
+        temp_networks[j + 1] = temp_networks[j];
+        temp_networks[j] = temp_swap;
+      }
+    }
+  }
+
+  // copy top 20 to scanned_networks array
+  int networks_to_copy = min(networks_found, 20);
+
+  for (int i = 0; i < networks_to_copy; i++) {
+    strncpy(scanned_networks[i].ssid, temp_networks[i].ssid, MAX_SSID_LENGTH);
+    scanned_networks[i].ssid[MAX_SSID_LENGTH] = '\0';
+    scanned_networks[i].rssi = temp_networks[i].rssi;
+    scanned_networks[i].encryption = temp_networks[i].encryption;
+  }
+
+  scanned_networks_amount = networks_to_copy;
+
+  return try_auto_connect();
 }
+
+// ----------------------------------------------------------------------------
+// Drawing Helper Functions
+// ----------------------------------------------------------------------------
 
 void WifiConfigScreen::draw_message(uint16_t color,
                                     const char* message,
@@ -485,6 +450,7 @@ void WifiConfigScreen::draw_message(uint16_t color,
     }
   }
 }
+
 void WifiConfigScreen::draw_network_list_header(lgfx::LGFX_Device* lcd) {
   // back button
   draw_back_button(lcd);
@@ -553,6 +519,7 @@ void WifiConfigScreen::draw_network_list_header(lgfx::LGFX_Device* lcd) {
     lcd->print("No connection");
   }
 }
+
 void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
   if (display_needs_redraw) {
     lcd->fillScreen(COLOR_BLACK);
@@ -615,15 +582,6 @@ void WifiConfigScreen::draw_network_list_item(const network_info_t& network,
 
   draw_signal_strength_bars(network.rssi, bars_x, y + 6, false, lcd);
 }
-void WifiConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
-  lcd->setTextColor(COLOR_WHITE);
-  lcd->setColor(COLOR_WHITE);
-  lcd->setTextSize(2);
-
-  lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
-  lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
-  lcd->print("<-");
-}
 
 void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
   lcd->setTextColor(COLOR_WHITE);
@@ -647,14 +605,73 @@ void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
   lcd->print("Enter SSID");
 }
 
-bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,
-                                        uint16_t touch_y,
-                                        uint16_t rect_x,
-                                        uint16_t rect_y,
-                                        uint16_t rect_width,
-                                        uint16_t rect_height) {
-  return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
+void WifiConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
+  lcd->setTextColor(COLOR_WHITE);
+  lcd->setColor(COLOR_WHITE);
+  lcd->setTextSize(2);
+
+  lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
+  lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
+  lcd->print("<-");
 }
+
+// drawing strength bars
+void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi,
+                                                 uint16_t x,
+                                                 uint16_t y,
+                                                 bool small,
+                                                 lgfx::LGFX_Device* lcd) {
+  // scale factor for small bars
+  float scale = small ? 0.7 : 1.0;
+
+  // calculate scaled dimensions
+  uint16_t bar_w = BARR_W * scale;
+  uint16_t bar_1_h = BARR_1_H * scale;
+  uint16_t bar_2_h = BARR_2_H * scale;
+  uint16_t bar_3_h = BARR_3_H * scale;
+  uint16_t bar_4_h = BARR_4_H * scale;
+  uint16_t offset_2 = BARR_2_X_OFFSET * scale;
+  uint16_t offset_3 = BARR_3_X_OFFSET * scale;
+  uint16_t offset_4 = BARR_4_X_OFFSET * scale;
+
+  // vertical reference point
+  uint16_t y_ref = small ? y : (y + ITEM_HEIGHT / 2);
+
+  if (rssi < -85) {
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h);
+    lcd->drawRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h);
+    lcd->drawRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h);
+    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
+  } else if (rssi >= -85 && rssi < -75) {
+    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_RED);
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h);
+    lcd->drawRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h);
+    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
+  } else if (rssi >= -75 && rssi < -65) {
+    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_ORANGE);
+    lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_ORANGE);
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h);
+    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
+  } else if (rssi >= -65 && rssi < -55) {
+    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_DARKGREEN);
+    lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_DARKGREEN);
+    lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_DARKGREEN);
+    lcd->setColor(COLOR_WHITE);
+    lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
+  } else if (rssi >= -45) {
+    lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_GREEN);
+    lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_GREEN);
+    lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_GREEN);
+    lcd->fillRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h, COLOR_GREEN);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Persistence (NVS)
+// ----------------------------------------------------------------------------
 
 // nvs persistence
 void WifiConfigScreen::save_to_nvs() {
@@ -682,4 +699,17 @@ void WifiConfigScreen::load_from_nvs() {
   saved_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
   prefs.end();
+}
+
+// ----------------------------------------------------------------------------
+// Utility Functions
+// ----------------------------------------------------------------------------
+
+bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,
+                                        uint16_t touch_y,
+                                        uint16_t rect_x,
+                                        uint16_t rect_y,
+                                        uint16_t rect_width,
+                                        uint16_t rect_height) {
+  return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
 }
