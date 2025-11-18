@@ -66,12 +66,12 @@
 #define MAX_WIFI_PASSWORD_LENGTH 63   // 63 chars + null (wpa2)
 
 // pool config limits
-#define MAX_POOL_URL_LENGTH 127   // 127 chars + null
-#define MAX_POOL_PORT_LENGTH 5    // 5 chars + null (port 1-65535)
+#define MAX_POOL_ADDRESS_LENGTH 127 // 127 chars + null
+#define MAX_POOL_NAME_LENGTH 20     // 20 chars + null
 
 // wallet config limits
 #define MAX_WALLET_ADDRESS_LENGTH 62  // 62 chars + null (taproot)
-#define MAX_WALLET_NAME_LENGTH 20     // 31 chars + null
+#define MAX_WALLET_NAME_LENGTH 20     // 20 chars + null
 
 // pin definitions (esp32-s3 zero)
 

@@ -1,44 +1,61 @@
-// wallet_config_screen.cpp
+// pool_config_screen.cpp
 
-#include "wallet_config_screen.h"
-#include <Preferences.h> 
+#include "pool_config_screen.h"
+
+#include <Preferences.h>
 
 // constructor
-WalletConfigScreen::WalletConfigScreen() {
+PoolConfigScreen::PoolConfigScreen() {
   // initialize state variables
   display_needs_redraw = true;
   popup_needs_redraw = false;
   selected_item_index = -1;
   last_touch_time = 0;
+  current_state = STATE_LIST;
 
-  // initialize all 4 wallet slots to empty/default state
+  // initialize all 4 pool slots to empty state
   for (int i = 0; i < TOTAL_SLOTS; i++) {
-    wallets[i].address[0] = '\0';  // empty string
-    wallets[i].name[0] = '\0';     // empty string
-    wallets[i].is_active = false;
-    wallets[i].is_configured = false;
+    pools[i].address[0] = '\0';
+    pools[i].name[0] = '\0';
+    pools[i].is_active = false;
+    pools[i].is_configured = false;
   }
 
-  // load saved wallets from nvs if any exist
+  // load saved pools from nvs if any exist
   load_from_nvs();
+
+  // set defaults for slots 0 and 1 only if they are still empty after loading
+  if (!pools[0].is_configured) {
+    strcpy(pools[0].name, "Public Pool");
+    strcpy(pools[0].address, "solo.ckpool.org:3333");
+    pools[0].is_configured = true;
+    pools[0].is_active = true;  // first default is active
+  }
+
+  if (!pools[1].is_configured) {
+    strcpy(pools[1].name, "Backup Pool");
+    strcpy(pools[1].address, "public-pool.io:21496");
+    pools[1].is_configured = true;
+    pools[1].is_active = false;  // second default is not active
+  }
 }
 
 // main draw function called every loop to render current state
-void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {
+void PoolConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
     case STATE_LIST:
-      // draw wallet list view with header
+      // draw pool list view with header
       draw_header(lcd);
       draw_list(lcd);
       break;
 
     case STATE_ENTERING_NAME:
-      // show keyboard for wallet name input
+      // show keyboard for pool name input
       kb.draw(lcd);
       break;
 
     case STATE_ENTERING_ADDRESS:
-      // show keyboard for wallet address input
+      // show keyboard for pool address input
       kb.draw(lcd);
       break;
 
@@ -55,7 +72,7 @@ void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 }
 
 // handle touch input and route to appropriate state handler
-void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
+void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
   // debounce touch input to prevent multiple rapid triggers
   unsigned long current_time = millis();
   if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
@@ -66,11 +83,11 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
 
   switch (current_state) {
     case STATE_LIST:
-      // check if any wallet item was touched
+      // check if any pool item was touched
       for (int i = 0; i < TOTAL_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
         if (is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
-          // wallet item touched open popup menu
+          // pool item touched open popup menu
           selected_item_index = i;
           popup_needs_redraw = true;
           current_state = STATE_POPUP_MENU;
@@ -78,7 +95,7 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       }
       // check if back button was touched
       if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
-        // exit wallet config interface
+        // exit pool config interface
       }
       break;
 
@@ -93,14 +110,14 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
         kb.clear();
       } else if (kb.is_complete()) {
         // name entered successfully save to temp and move to address entry
-        const char* wallet_name = kb.get_text();
-        strncpy(temp_name, wallet_name, MAX_WALLET_NAME_LENGTH);
-        temp_name[MAX_WALLET_NAME_LENGTH] = '\0';
+        const char* pool_name = kb.get_text();
+        strncpy(temp_name, pool_name, MAX_POOL_NAME_LENGTH);
+        temp_name[MAX_POOL_NAME_LENGTH] = '\0';
 
         current_state = STATE_ENTERING_ADDRESS;
         kb.clear();
-        kb.set_label("Enter wallet address");
-        kb.set_max_length(MAX_WALLET_ADDRESS_LENGTH);
+        kb.set_label("Enter pool address");
+        kb.set_max_length(MAX_POOL_ADDRESS_LENGTH);
         kb.reset_complete();
       }
       break;
@@ -115,28 +132,28 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
         current_state = STATE_ENTERING_NAME;
         kb.clear();
       } else if (kb.is_complete()) {
-        // address entered successfully save wallet data
-        const char* wallet_address = kb.get_text();
-        strncpy(temp_address, wallet_address, MAX_WALLET_ADDRESS_LENGTH);
-        temp_address[MAX_WALLET_ADDRESS_LENGTH] = '\0';
+        // address entered successfully save pool data
+        const char* pool_address = kb.get_text();
+        strncpy(temp_address, pool_address, MAX_POOL_ADDRESS_LENGTH);
+        temp_address[MAX_POOL_ADDRESS_LENGTH] = '\0';
 
-        // copy temp data to actual wallet slot
-        strcpy(wallets[selected_item_index].name, temp_name);
-        strcpy(wallets[selected_item_index].address, temp_address);
-        wallets[selected_item_index].is_configured = true;
+        // copy temp data to actual pool slot
+        strcpy(pools[selected_item_index].name, temp_name);
+        strcpy(pools[selected_item_index].address, temp_address);
+        pools[selected_item_index].is_configured = true;
 
-        // check if any other wallet is already configured
-        bool has_other_wallets = false;
+        // check if any other pool is already configured
+        bool has_other_pools = false;
         for (int j = 0; j < 4; j++) {
-          if (j != selected_item_index && wallets[j].is_configured) {
-            has_other_wallets = true;
+          if (j != selected_item_index && pools[j].is_configured) {
+            has_other_pools = true;
             break;
           }
         }
 
-        // if this is the first wallet make it active
-        if (!has_other_wallets) {
-          wallets[selected_item_index].is_active = true;
+        // if this is the first pool make it active
+        if (!has_other_pools) {
+          pools[selected_item_index].is_active = true;
         }
 
         // save to nvs and return to list
@@ -148,8 +165,8 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       break;
 
     case STATE_POPUP_MENU:
-      if (wallets[selected_item_index].is_configured) {
-        // configured wallet has 4 buttons: select edit delete back
+      if (pools[selected_item_index].is_configured) {
+        // configured pool has 4 buttons: select edit delete back
         for (int i = 0; i < 4; i++) {
           if (is_point_in_rect(tx,
                                ty,
@@ -159,30 +176,30 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                                POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 0:
-                // select button: deactivate all wallets then activate this one
+                // select button: deactivate all pools then activate this one
                 for (int j = 0; j < 4; j++) {
-                  wallets[j].is_active = false;
+                  pools[j].is_active = false;
                 }
-                wallets[selected_item_index].is_active = true;
+                pools[selected_item_index].is_active = true;
                 current_state = STATE_LIST;
                 display_needs_redraw = true;
                 break;
 
               case 1:
-                // edit button: start keyboard flow to edit wallet
+                // edit button: start keyboard flow to edit pool
                 current_state = STATE_ENTERING_NAME;
                 kb.clear();
-                kb.set_label("Enter wallet name");
-                kb.set_max_length(MAX_WALLET_NAME_LENGTH);
+                kb.set_label("Enter pool name");
+                kb.set_max_length(MAX_POOL_NAME_LENGTH);
                 kb.reset_complete();
                 break;
 
               case 2:
-                // delete button: clear wallet data and return to list
-                wallets[selected_item_index].name[0] = '\0';
-                wallets[selected_item_index].address[0] = '\0';
-                wallets[selected_item_index].is_active = false;
-                wallets[selected_item_index].is_configured = false;
+                // delete button: clear pool data and return to list
+                pools[selected_item_index].name[0] = '\0';
+                pools[selected_item_index].address[0] = '\0';
+                pools[selected_item_index].is_active = false;
+                pools[selected_item_index].is_configured = false;
                 current_state = STATE_LIST;
                 display_needs_redraw = true;
                 break;
@@ -200,7 +217,7 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
         }
 
       } else {
-        // empty wallet has 2 buttons: add and back centered in positions 1 and 2
+        // empty pool has 2 buttons: add and back centered in positions 1 and 2
         for (int i = 1; i < 3; i++) {
           if (is_point_in_rect(tx,
                                ty,
@@ -210,11 +227,11 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                                POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 1:
-                // add button: start keyboard flow to create new wallet
+                // add button: start keyboard flow to create new pool
                 current_state = STATE_ENTERING_NAME;
                 kb.clear();
-                kb.set_label("Enter wallet name");
-                kb.set_max_length(MAX_WALLET_NAME_LENGTH);
+                kb.set_label("Enter pool name");
+                kb.set_max_length(MAX_POOL_NAME_LENGTH);
                 kb.reset_complete();
                 break;
 
@@ -235,18 +252,18 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
 }
 
 // draw header with back button and title
-void WalletConfigScreen::draw_header(lgfx::LGFX_Device* lcd) {
+void PoolConfigScreen::draw_header(lgfx::LGFX_Device* lcd) {
   draw_back_button(lcd);
 
   // draw title text
   lcd->setTextColor(COLOR_WHITE);
   lcd->setTextSize(2);
   lcd->setCursor(HEADER_TEXT_X, HEADER_TEXT_Y);
-  lcd->print("Wallets");
+  lcd->print("Pools");
 }
 
 // draw back button in top left corner
-void WalletConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
+void PoolConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
   lcd->setTextColor(COLOR_WHITE);
   lcd->setColor(COLOR_WHITE);
   lcd->setTextSize(2);
@@ -259,37 +276,37 @@ void WalletConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
   lcd->print("<-");
 }
 
-// draw list of all 4 wallet slots
-void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
+// draw list of all 4 pool slots
+void PoolConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
   // clear screen if needed
   if (display_needs_redraw) {
     lcd->fillScreen(COLOR_BLACK);
     display_needs_redraw = false;
   }
 
-  // draw each wallet item
+  // draw each pool item
   for (int i = 0; i < TOTAL_SLOTS; i++) {
     uint16_t item_y = LIST_START_Y + (i * (ITEM_HEIGHT + ITEM_GAP));
     draw_list_item(i, LIST_START_X, item_y, lcd);
   }
 }
 
-// draw individual wallet item at given position
-void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {
+// draw individual pool item at given position
+void PoolConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd) {
   lcd->setTextColor(COLOR_WHITE);
   lcd->setTextSize(2);
 
   // draw item border rectangle
   lcd->drawRect(LIST_START_X, y, SCREEN_WIDTH - (2 * LIST_START_X), ITEM_HEIGHT, COLOR_WHITE);
 
-  if (!wallets[index].is_configured) {
+  if (!pools[index].is_configured) {
     // empty slot show add prompt
     lcd->setCursor(LIST_START_X + 3, y + 12);
-    lcd->print("  + Add wallet");
+    lcd->print("  + Add pool");
   } else {
-    // configured slot show wallet name on first line
+    // configured slot show pool name on first line
     lcd->setCursor(LIST_START_X + 3, y + 5);
-    lcd->print(wallets[index].name);
+    lcd->print(pools[index].name);
 
     // show truncated address on second line with smaller text
     lcd->setTextSize(1);
@@ -297,20 +314,20 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, l
 
     // create truncated version: first 10 chars + ... + last 10 chars
     char truncated[24];
-    strncpy(truncated, wallets[index].address, 10);
+    strncpy(truncated, pools[index].address, 10);
     truncated[10] = '.';
     truncated[11] = '.';
     truncated[12] = '.';
 
-    int addr_len = strlen(wallets[index].address);
-    strncpy(truncated + 13, wallets[index].address + addr_len - 10, 10);
+    int addr_len = strlen(pools[index].address);
+    strncpy(truncated + 13, pools[index].address + addr_len - 10, 10);
     truncated[23] = '\0';
 
     lcd->print(truncated);
   }
 
-  // show active indicator if this wallet is selected
-  if (wallets[index].is_active) {
+  // show active indicator if this pool is selected
+  if (pools[index].is_active) {
     lcd->setCursor(SCREEN_WIDTH - (8 * LIST_START_X), y + 12);
     lcd->setTextSize(2);
     lcd->setTextColor(COLOR_GREEN);
@@ -318,8 +335,8 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, l
   }
 }
 
-// draw popup menu overlay with buttons for current wallet
-void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
+// draw popup menu overlay with buttons for current pool
+void PoolConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   // clear and draw popup background
   lcd->fillRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLACK);
   lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLUE2);
@@ -329,8 +346,8 @@ void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   lcd->setColor(COLOR_WHITE);
   lcd->setTextSize(1);
 
-  if (wallets[selected_item_index].is_configured) {
-    // configured wallet shows 4 buttons in a row
+  if (pools[selected_item_index].is_configured) {
+    // configured pool shows 4 buttons in a row
     const char* button_labels[] = {"Select", "Edit", "Delete", "Back"};
 
     for (int i = 0; i < 4; i++) {
@@ -346,7 +363,7 @@ void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
       lcd->print(button_labels[i]);
     }
   } else {
-    // empty wallet shows 2 centered buttons
+    // empty pool shows 2 centered buttons
     const char* button_labels[] = {"Add", "Back"};
 
     for (int i = 0; i < 2; i++) {
@@ -369,7 +386,7 @@ void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
 }
 
 // check if touch coordinates fall within rectangle bounds
-bool WalletConfigScreen::is_point_in_rect(uint16_t touch_x,
+bool PoolConfigScreen::is_point_in_rect(uint16_t touch_x,
                                           uint16_t touch_y,
                                           uint16_t rect_x,
                                           uint16_t rect_y,
@@ -378,61 +395,61 @@ bool WalletConfigScreen::is_point_in_rect(uint16_t touch_x,
   return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
 }
 
-// save wallet data to nvs storage
-void WalletConfigScreen::save_to_nvs(uint8_t index) {
+// save pool data to nvs storage
+void PoolConfigScreen::save_to_nvs(uint8_t index) {
   Preferences prefs;
   prefs.begin("esp32btcminer", false);  // open namespace in read/write mode
-  
-  // create unique keys for this wallet slot
+
+  // create unique keys for this pool slot
   char name_key[16];
   char addr_key[16];
   char active_key[16];
   char config_key[16];
-  
-  sprintf(name_key, "wallet%d_name", index);
-  sprintf(addr_key, "wallet%d_addr", index);
-  sprintf(active_key, "wallet%d_act", index);
-  sprintf(config_key, "wallet%d_cfg", index);
-  
-  // save wallet data
-  prefs.putString(name_key, wallets[index].name);
-  prefs.putString(addr_key, wallets[index].address);
-  prefs.putBool(active_key, wallets[index].is_active);
-  prefs.putBool(config_key, wallets[index].is_configured);
-  
+
+  sprintf(name_key, "pool%d_name", index);
+  sprintf(addr_key, "pool%d_addr", index);
+  sprintf(active_key, "pool%d_act", index);
+  sprintf(config_key, "pool%d_cfg", index);
+
+  // save pool data
+  prefs.putString(name_key, pools[index].name);
+  prefs.putString(addr_key, pools[index].address);
+  prefs.putBool(active_key, pools[index].is_active);
+  prefs.putBool(config_key, pools[index].is_configured);
+
   prefs.end();  // close namespace
 }
 
-// load all wallet data from nvs storage
-void WalletConfigScreen::load_from_nvs() {
+// load all pool data from nvs storage
+void PoolConfigScreen::load_from_nvs() {
   Preferences prefs;
   prefs.begin("esp32btcminer", true);  // open namespace in read-only mode
-  
-  // load all 4 wallet slots
+
+  // load all 4 pool slots
   for (int i = 0; i < TOTAL_SLOTS; i++) {
     char name_key[16];
     char addr_key[16];
     char active_key[16];
     char config_key[16];
-    
-    sprintf(name_key, "wallet%d_name", i);
-    sprintf(addr_key, "wallet%d_addr", i);
-    sprintf(active_key, "wallet%d_act", i);
-    sprintf(config_key, "wallet%d_cfg", i);
-    
+
+    sprintf(name_key, "pool%d_name", i);
+    sprintf(addr_key, "pool%d_addr", i);
+    sprintf(active_key, "pool%d_act", i);
+    sprintf(config_key, "pool%d_cfg", i);
+
     // load data with empty string as default
     String name = prefs.getString(name_key, "");
     String addr = prefs.getString(addr_key, "");
-    wallets[i].is_active = prefs.getBool(active_key, false);
-    wallets[i].is_configured = prefs.getBool(config_key, false);
-    
-    // copy strings to wallet arrays
-    strncpy(wallets[i].name, name.c_str(), MAX_WALLET_NAME_LENGTH);
-    wallets[i].name[MAX_WALLET_NAME_LENGTH] = '\0';
-    
-    strncpy(wallets[i].address, addr.c_str(), MAX_WALLET_ADDRESS_LENGTH);
-    wallets[i].address[MAX_WALLET_ADDRESS_LENGTH] = '\0';
+    pools[i].is_active = prefs.getBool(active_key, false);
+    pools[i].is_configured = prefs.getBool(config_key, false);
+
+    // copy strings to pool arrays
+    strncpy(pools[i].name, name.c_str(), MAX_POOL_NAME_LENGTH);
+    pools[i].name[MAX_POOL_NAME_LENGTH] = '\0';
+
+    strncpy(pools[i].address, addr.c_str(), MAX_POOL_ADDRESS_LENGTH);
+    pools[i].address[MAX_POOL_ADDRESS_LENGTH] = '\0';
   }
-  
+
   prefs.end();
 }
