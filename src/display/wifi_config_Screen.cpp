@@ -1,10 +1,11 @@
 // wifi_config_screen.cpp
 #include "wifi_config_screen.h"
 
+#include <Preferences.h>
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 209;
-const uint16_t BOTTOM_BUTTONS_TEXT_Y = BOTTOM_BUTTONS_Y + 10;//219
+const uint16_t BOTTOM_BUTTONS_TEXT_Y = BOTTOM_BUTTONS_Y + 10;  // 219
 const uint16_t BUTTON_HEIGHT = 30;
 
 const uint16_t BUTTON_GAP = 5;
@@ -25,8 +26,6 @@ const uint16_t MANUAL_BUTTON_X = RESCAN_BUTTON_X + RESCAN_BUTTON_W + BUTTON_GAP;
 const uint16_t MANUAL_BUTTON_W = 76;                        // slightly wider to fill remaining space
 const uint16_t MANUAL_BUTTON_TEXT_X = MANUAL_BUTTON_X + 5;  // 244
 
-
-
 // strengh barrs parameters
 const uint16_t BARR_W = 2;
 const uint16_t BARR_1_H = 3;
@@ -44,18 +43,33 @@ WifiConfigScreen::WifiConfigScreen() {
   selected_network = -1;
   scanned_networks_amount = 0;
   display_needs_redraw = true;  // redraw flag
-  last_touch_time = 0;       // initialize debounce timer
+  last_touch_time = 0;          // initialize debounce timer
+  saved_ssid[0] = '\0';
+  saved_password[0] = '\0';
 }
+bool WifiConfigScreen::try_auto_connect() {
+  if (strlen(saved_ssid) > 0) {
+    for (int i = 0; i < scanned_networks_amount; i++) {
+      if (strcmp(scanned_networks[i].ssid, saved_ssid) == 0) {
+        current_state = STATE_CONNECTING;  // show connecting animation
+        connect(saved_ssid, saved_password);
+        display_needs_redraw = true;
+
+        return true;  // found network to connect to
+      }
+    }
+  }
+  return false;
+};
 
 // initiates async wifi network scan
 void WifiConfigScreen::start_scan() {
-
   display_needs_redraw = true;
   current_state = STATE_SCANNING;
   WiFi.scanNetworks(true, false);
 }
 // processes wifi scan results - sorts by signal strength and stores top 20
-void WifiConfigScreen::process_scan_results(int networks_found) {
+bool WifiConfigScreen::process_scan_results(int networks_found) {
   networks_found = min(networks_found, 50);
 
   // temporary array for all found networks
@@ -91,6 +105,8 @@ void WifiConfigScreen::process_scan_results(int networks_found) {
   }
 
   scanned_networks_amount = networks_to_copy;
+
+  return try_auto_connect();
 }
 // main draw method - renders current state
 void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
@@ -107,14 +123,17 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         state_change_time = millis();
       } else if (scan_status == -1) {
         // still scanning
-        draw_message(COLOR_YELLOW, "Scanning networks", true, true, 120, 120, lcd);\
+        draw_message(COLOR_YELLOW, "Scanning networks", true, true, 120, 120, lcd);
         draw_back_button(lcd);
       } else if (scan_status >= 0) {
+
         // scan completed - process results
         int networks_found = max(scan_status, 0);
+        bool is_autoconnecting = false;  // flag to track autoconnect status
 
         if (networks_found > 0) {
-          process_scan_results(networks_found);
+          // Check the return value to see if auto-connect started
+          is_autoconnecting = process_scan_results(networks_found);
         } else {
           scanned_networks_amount = 0;
         }
@@ -122,7 +141,13 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         // cleanup and transition
         WiFi.scanDelete();
         display_needs_redraw = true;
-        current_state = STATE_LIST;
+
+        // only go to STATE_LIST if we are NOT auto-connecting
+        if (!is_autoconnecting) {
+          current_state = STATE_LIST;
+        }
+        // if auto-connecting, we do nothing,
+        // leaving the state as STATE_CONNECTING
       }
       break;
     }
@@ -171,6 +196,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
     }
 
     case STATE_SUCCESS:
+      save_to_nvs();
       draw_message(COLOR_GREEN, "Connected!", false, true, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
         display_needs_redraw = true;
@@ -212,7 +238,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
   switch (current_state) {
     case STATE_SCANNING: {
       if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
-        WiFi.scanDelete();         // cancel ongoing scan
+        WiFi.scanDelete();            // cancel ongoing scan
         display_needs_redraw = true;  // force redraw when returning to list
         current_state = STATE_LIST;
       }
@@ -283,7 +309,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
         connect(scanned_networks[selected_network].ssid, typed_ssid_password);  // initiates wifi connection
         display_needs_redraw = true;
-        current_state = STATE_CONNECTING;                                       // show connecting animation
+        current_state = STATE_CONNECTING;  // show connecting animation
         kb.reset_complete();
       }
       break;
@@ -326,7 +352,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
         connect(manual_ssid, typed_ssid_password);  // initiates wifi connection
         display_needs_redraw = true;
-        current_state = STATE_CONNECTING;           // show connecting animation
+        current_state = STATE_CONNECTING;  // show connecting animation
         kb.reset_complete();
       }
       break;
@@ -342,6 +368,13 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
   }
 }
 void WifiConfigScreen::connect(const char* ssid, const char* password) {
+  // store what we're connecting with
+  strncpy(saved_ssid, ssid, MAX_SSID_LENGTH);
+  saved_ssid[MAX_SSID_LENGTH] = '\0';
+
+  strncpy(saved_password, password, MAX_WIFI_PASSWORD_LENGTH);
+  saved_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
+
   WiFi.begin(ssid, password);
   connection_start_time = millis();
 }
@@ -468,29 +501,27 @@ void WifiConfigScreen::draw_network_list_header(lgfx::LGFX_Device* lcd) {
   lcd->setTextSize(1);
 
   if (WiFi.status() == WL_CONNECTED) {
-    const int right_margin = 5;            // pixels from right edge
-    const int bars_width = 10;             // total width of signal bars
-    const int text_spacing = 1;            // gap between text and bars
-    const int text_to_network_gap = 20;    // gap between header text and network info
-    const int bars_internal_offset = 5;    // built-in offset in draw_signal_strength_bars
+    const int right_margin = 5;          // pixels from right edge
+    const int bars_width = 10;           // total width of signal bars
+    const int text_spacing = 1;          // gap between text and bars
+    const int text_to_network_gap = 20;  // gap between header text and network info
+    const int bars_internal_offset = 5;  // built-in offset in draw_signal_strength_bars
 
-    
     // position bars from right edge
     int bars_x = SCREEN_WIDTH - right_margin - bars_width - bars_internal_offset;
 
-    
     // calculate where text can end
     int text_max_x = bars_x - text_spacing;
-    
+
     // calculate available text width
     int text_start_x = HEADER_TEXT_X + (header_text_length * 12) + text_to_network_gap;
     int available_text_width = text_max_x - text_start_x;
     int max_chars = available_text_width / 6;  // 6 pixels per character at text size 1
-    
+
     // get ssid and truncate if needed
     int ssid_len = WiFi.SSID().length();
     char display_text[32];
-    
+
     if (ssid_len > max_chars && max_chars > 3) {
       // truncate and add ellipsis
       strncpy(display_text, WiFi.SSID().c_str(), max_chars - 3);
@@ -500,21 +531,25 @@ void WifiConfigScreen::draw_network_list_header(lgfx::LGFX_Device* lcd) {
       strncpy(display_text, WiFi.SSID().c_str(), sizeof(display_text) - 1);
       display_text[sizeof(display_text) - 1] = '\0';
     }
-    
+
     // position text to end at text_max_x
     int actual_text_len = strlen(display_text);
     int text_x = text_max_x - (actual_text_len * 6);
-    
+
     lcd->setCursor(text_x, HEADER_NETWORK_Y);
     lcd->print(display_text);
-    
-    draw_signal_strength_bars(WiFi.RSSI(), bars_x , HEADER_NETWORK_Y + 7, true, lcd);
+
+    draw_signal_strength_bars(WiFi.RSSI(), bars_x, HEADER_NETWORK_Y + 7, true, lcd);
 
   } else {
     const int right_margin = 5;
     int no_conn_len = strlen("No connection");
     lcd->setCursor(SCREEN_WIDTH - right_margin - (no_conn_len * 6) - 10, HEADER_NETWORK_Y);
-    lcd->fillRect(SCREEN_WIDTH - right_margin - (no_conn_len * 6) - 10, HEADER_NETWORK_Y,(no_conn_len * 6), HEADER_NETWORK_Y, COLOR_BLACK);
+    lcd->fillRect(SCREEN_WIDTH - right_margin - (no_conn_len * 6) - 10,
+                  HEADER_NETWORK_Y,
+                  (no_conn_len * 6),
+                  HEADER_NETWORK_Y,
+                  COLOR_BLACK);
     lcd->print("No connection");
   }
 }
@@ -619,4 +654,32 @@ bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,
                                         uint16_t rect_width,
                                         uint16_t rect_height) {
   return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
+}
+
+// nvs persistence
+void WifiConfigScreen::save_to_nvs() {
+  Preferences prefs;
+  prefs.begin("esp32btcminer", false);  // open namespace in read/write mode
+
+  prefs.putString("wifi_ssid", saved_ssid);
+  prefs.putString("wifi_pass", saved_password);
+
+  prefs.end();  // close namespace
+}
+void WifiConfigScreen::load_from_nvs() {
+  Preferences prefs;
+  prefs.begin("esp32btcminer", true);  // open namespace in read mode
+
+  // load empty strings as default if nothing stored
+  String ssid = prefs.getString("wifi_ssid", "");
+  String password = prefs.getString("wifi_pass", "");
+
+  // copy strings to saved_ssid and saved_password variables
+  strncpy(saved_ssid, ssid.c_str(), MAX_SSID_LENGTH);
+  saved_ssid[MAX_SSID_LENGTH] = '\0';
+
+  strncpy(saved_password, password.c_str(), MAX_WIFI_PASSWORD_LENGTH);
+  saved_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
+
+  prefs.end();
 }

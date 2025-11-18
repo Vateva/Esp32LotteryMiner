@@ -29,19 +29,22 @@ struct network_info_t {
 class WifiConfigScreen {
  private:
   // network data
-  network_info_t scanned_networks[20];                     // up to 20 networks
-  int8_t scanned_networks_amount;                          // actual count found
-  int8_t selected_network;                                 // index of selected network (-1 if none)
-  unsigned long connection_start_time;                     // when connection attempt started
-  char manual_ssid[MAX_SSID_LENGTH + 1];                   // stores manually entered ssid
-  char typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH + 1];  // password entered by user
+  network_info_t scanned_networks[20];  // up to 20 networks
+  int8_t scanned_networks_amount;       // actual count found
+  int8_t selected_network;              // index of selected network (-1 if none)
+  unsigned long connection_start_time;  // when connection attempt started
+
+  char manual_ssid[MAX_SSID_LENGTH + 1];                   // stores manually entered ssid(buffer)
+  char typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH + 1];  // password entered by user both manual and selected(buffer)
+  char saved_ssid[MAX_SSID_LENGTH + 1];                    // stores last ssid to autoconnect
+  char saved_password[MAX_WIFI_PASSWORD_LENGTH + 1];       // stores password to autoconnect
 
   // ui state
   screen_state_t current_state;     // current screen state
   int8_t current_page;              // current page in network list
   unsigned long state_change_time;  // when state last changed
   Keyboard kb;                      // keyboard widget for password entry
-  bool display_needs_redraw;           // redraw flag
+  bool display_needs_redraw;        // redraw flag
 
   // debouncing
   unsigned long last_touch_time;
@@ -67,8 +70,14 @@ class WifiConfigScreen {
                         uint16_t rect_y,
                         uint16_t rect_width,
                         uint16_t rect_height);
-//scan results
-void process_scan_results(int networks_found);
+  // scan results
+  bool process_scan_results(int networks_found);
+
+  // autoconnect
+  bool try_auto_connect();
+
+  // nvs persistence
+  void save_to_nvs();
 
  public:
   WifiConfigScreen();
@@ -79,5 +88,8 @@ void process_scan_results(int networks_found);
   void handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd);  // processes touch input
   void start_scan();                                                    // initiates network scan
   void connect(const char* ssid, const char* password);                 // connects to selected network
+
+  // loading data to autoconnect
+  void load_from_nvs();
 };
 #endif

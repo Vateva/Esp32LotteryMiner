@@ -315,9 +315,9 @@ void Keyboard::init_number_layout() {
 // renders a single key
 void Keyboard::draw_key(lgfx::LGFX_Device* lcd, const keyboard_key_t& key, bool highlighted) {
   // select colors based on highlight state
-  uint32_t bg_color = highlighted ? KB_KEY_PRESSED_COLOR : KB_KEY_NORMAL_COLOR;
-  uint32_t border_color = COLOR_BLACK;
-  uint32_t text_color = KB_KEY_TEXT_COLOR;
+  uint16_t bg_color = highlighted ? KB_KEY_PRESSED_COLOR : KB_KEY_NORMAL_COLOR;
+  uint16_t border_color = COLOR_BLACK;
+  uint16_t text_color = KB_KEY_TEXT_COLOR;
 
   // draw key shape
   lcd->fillRect(key.x, key.y, key.w, key.h, bg_color);

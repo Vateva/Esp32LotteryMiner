@@ -1,9 +1,11 @@
-// main.cpp: wallet config screen test
+// main.cpp: wifi config screen test
 #define LGFX_USE_V1
+#include <WiFi.h>
+
 #include <LovyanGFX.hpp>
 
 #include "config.h"
-#include "wallet_config_screen.h"
+#include "wifi_config_screen.h"
 
 // lgfx class for ili9341 + ft6336 touch
 class LGFX : public lgfx::LGFX_Device {
@@ -53,7 +55,8 @@ class LGFX : public lgfx::LGFX_Device {
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
 
-      cfg.invert = true;  // enable color inversion
+      cfg.invert = true;  // Enable color inversion
+      // cfg.rgb_order = false;
 
       _panel_instance.config(cfg);
     }
@@ -86,7 +89,7 @@ class LGFX : public lgfx::LGFX_Device {
 
 // global instances
 LGFX lcd;
-WalletConfigScreen wallet_screen;
+WifiConfigScreen wifi_screen;
 
 // setup
 void setup() {
@@ -94,8 +97,10 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n================================");
-  Serial.println("  wallet config screen test");
+  Serial.println("   wifi config screen test");
   Serial.println("================================");
+
+ 
 
   // init display
   lcd.init();
@@ -111,7 +116,18 @@ void setup() {
     Serial.println("[error] touch controller not detected!");
   }
 
-  Serial.println("[info] wallet config screen ready");
+  // set wifi mode to station
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+
+  Serial.println("[ok] wifi initialized");
+
+  wifi_screen.load_from_nvs();
+
+  // start network scan
+  wifi_screen.start_scan();
+  Serial.println("[info] starting wifi scan...");
   Serial.println();
 }
 
@@ -122,9 +138,26 @@ void loop() {
   // check for touch
   lcd.getTouch(&x, &y);
 
-  // pass touch to wallet screen handler
-  wallet_screen.handle_touch(x, y, &lcd);
+  // pass touch to wifi screen handler
+  wifi_screen.handle_touch(x, y, &lcd);
 
-  // draw current wallet screen state
-  wallet_screen.draw(&lcd);
+  // draw current wifi screen state
+  wifi_screen.draw(&lcd);
+
+  // check if connected
+  if (WiFi.status() == WL_CONNECTED) {
+    // print connection info once
+    static bool info_printed = false;
+    if (!info_printed) {
+      Serial.println("\n[success] wifi connected!");
+      Serial.print("  ssid: ");
+      Serial.println(WiFi.SSID());
+      Serial.print("  ip address: ");
+      Serial.println(WiFi.localIP());
+      Serial.print("  rssi: ");
+      Serial.print(WiFi.RSSI());
+      Serial.println(" dBm");
+      info_printed = true;
+    }
+  }
 }

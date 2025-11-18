@@ -322,7 +322,7 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, l
 void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   // clear and draw popup background
   lcd->fillRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLACK);
-  lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_BLUE2);
+  lcd->drawRect(POPUP_MENU_X, POPUP_MENU_Y, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT, COLOR_NICEBLUE);
 
   // setup text properties for buttons
   lcd->setTextColor(COLOR_WHITE);
