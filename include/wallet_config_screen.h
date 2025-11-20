@@ -5,9 +5,12 @@
 #include <Arduino.h>
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <Preferences.h> 
 
 #include "config.h"
 #include "keyboard.h"
+#include "ui_utils.h"
+
 
 // screen states for wallet configuration flow
 enum wallet_screen_state_t {
@@ -29,7 +32,6 @@ class WalletConfigScreen {
 
   // wallet storage
   wallet_info_t wallets[4];
-  static const uint8_t TOTAL_SLOTS = 4;
 
   // ui state
   wallet_screen_state_t current_state;

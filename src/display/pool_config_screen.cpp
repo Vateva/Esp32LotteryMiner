@@ -2,7 +2,6 @@
 
 #include "pool_config_screen.h"
 
-#include <Preferences.h>
 
 // constructor
 PoolConfigScreen::PoolConfigScreen() {
@@ -14,7 +13,7 @@ PoolConfigScreen::PoolConfigScreen() {
   current_state = STATE_LIST;
 
   // initialize all 4 pool slots to empty state
-  for (int i = 0; i < TOTAL_SLOTS; i++) {
+  for (int i = 0; i < LIST_SLOTS; i++) {
     pools[i].address[0] = '\0';
     pools[i].name[0] = '\0';
     pools[i].is_active = false;
@@ -45,7 +44,7 @@ void PoolConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
     case STATE_LIST:
       // draw pool list view with header
-      draw_header(lcd);
+      UIUtils::draw_header(lcd, "Pools");
       draw_list(lcd);
       break;
 
@@ -62,7 +61,7 @@ void PoolConfigScreen::draw(lgfx::LGFX_Device* lcd) {
     case STATE_POPUP_MENU:
       // only redraw popup once to prevent flickering
       if (popup_needs_redraw) {
-        draw_header(lcd);
+        UIUtils::draw_header(lcd, "Pools");
         draw_list(lcd);
         draw_popup_menu(lcd);
         popup_needs_redraw = false;
@@ -84,9 +83,9 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
   switch (current_state) {
     case STATE_LIST:
       // check if any pool item was touched
-      for (int i = 0; i < TOTAL_SLOTS; i++) {
+      for (int i = 0; i < LIST_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
-        if (is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
+        if (UIUtils::is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
           // pool item touched open popup menu
           selected_item_index = i;
           popup_needs_redraw = true;
@@ -94,7 +93,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         }
       }
       // check if back button was touched
-      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+      if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         // exit pool config interface
       }
       break;
@@ -168,7 +167,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       if (pools[selected_item_index].is_configured) {
         // configured pool has 4 buttons: select edit delete back
         for (int i = 0; i < 4; i++) {
-          if (is_point_in_rect(tx,
+          if (UIUtils::is_point_in_rect(tx,
                                ty,
                                POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
                                POPUP_MENU_BUTTON_Y,
@@ -219,7 +218,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       } else {
         // empty pool has 2 buttons: add and back centered in positions 1 and 2
         for (int i = 1; i < 3; i++) {
-          if (is_point_in_rect(tx,
+          if (UIUtils::is_point_in_rect(tx,
                                ty,
                                POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
                                POPUP_MENU_BUTTON_Y,
@@ -251,30 +250,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
   }
 }
 
-// draw header with back button and title
-void PoolConfigScreen::draw_header(lgfx::LGFX_Device* lcd) {
-  draw_back_button(lcd);
 
-  // draw title text
-  lcd->setTextColor(COLOR_WHITE);
-  lcd->setTextSize(2);
-  lcd->setCursor(HEADER_TEXT_X, HEADER_TEXT_Y);
-  lcd->print("Pools");
-}
-
-// draw back button in top left corner
-void PoolConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
-  lcd->setTextColor(COLOR_WHITE);
-  lcd->setColor(COLOR_WHITE);
-  lcd->setTextSize(2);
-
-  // draw button rectangle
-  lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
-
-  // draw arrow text
-  lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
-  lcd->print("<-");
-}
 
 // draw list of all 4 pool slots
 void PoolConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
@@ -285,7 +261,7 @@ void PoolConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
   }
 
   // draw each pool item
-  for (int i = 0; i < TOTAL_SLOTS; i++) {
+  for (int i = 0; i < LIST_SLOTS; i++) {
     uint16_t item_y = LIST_START_Y + (i * (ITEM_HEIGHT + ITEM_GAP));
     draw_list_item(i, LIST_START_X, item_y, lcd);
   }
@@ -297,20 +273,20 @@ void PoolConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgf
   lcd->setTextSize(2);
 
   // draw item border rectangle
-  lcd->drawRect(LIST_START_X, y, SCREEN_WIDTH - (2 * LIST_START_X), ITEM_HEIGHT, COLOR_WHITE);
+  lcd->drawRect(x, y, SCREEN_WIDTH - (2 * x), ITEM_HEIGHT, COLOR_WHITE);
 
   if (!pools[index].is_configured) {
     // empty slot show add prompt
-    lcd->setCursor(LIST_START_X + 3, y + 12);
+    lcd->setCursor(x + 3, y + 12);
     lcd->print("  + Add pool");
   } else {
     // configured slot show pool name on first line
-    lcd->setCursor(LIST_START_X + 3, y + 5);
+    lcd->setCursor(x + 3, y + 5);
     lcd->print(pools[index].name);
 
     // show truncated address on second line with smaller text
     lcd->setTextSize(1);
-    lcd->setCursor(LIST_START_X + 3, y + 25);
+    lcd->setCursor(x + 3, y + 25);
 
     // create truncated version: first 10 chars + ... + last 10 chars
     char truncated[24];
@@ -328,7 +304,7 @@ void PoolConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgf
 
   // show active indicator if this pool is selected
   if (pools[index].is_active) {
-    lcd->setCursor(SCREEN_WIDTH - (8 * LIST_START_X), y + 12);
+    lcd->setCursor(SCREEN_WIDTH - (8 * x), y + 12);
     lcd->setTextSize(2);
     lcd->setTextColor(COLOR_GREEN);
     lcd->print("x");
@@ -385,15 +361,6 @@ void PoolConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   }
 }
 
-// check if touch coordinates fall within rectangle bounds
-bool PoolConfigScreen::is_point_in_rect(uint16_t touch_x,
-                                          uint16_t touch_y,
-                                          uint16_t rect_x,
-                                          uint16_t rect_y,
-                                          uint16_t rect_width,
-                                          uint16_t rect_height) {
-  return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
-}
 
 // save pool data to nvs storage
 void PoolConfigScreen::save_to_nvs(uint8_t index) {
@@ -426,7 +393,7 @@ void PoolConfigScreen::load_from_nvs() {
   prefs.begin("esp32btcminer", true);  // open namespace in read-only mode
 
   // load all 4 pool slots
-  for (int i = 0; i < TOTAL_SLOTS; i++) {
+  for (int i = 0; i < LIST_SLOTS; i++) {
     char name_key[16];
     char addr_key[16];
     char active_key[16];

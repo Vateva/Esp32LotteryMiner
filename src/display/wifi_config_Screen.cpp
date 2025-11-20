@@ -1,5 +1,6 @@
 // wifi_config_screen.cpp
 #include "wifi_config_screen.h"
+#include "ui_utils.h"
 
 #include <Preferences.h>
 
@@ -72,7 +73,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       } else if (scan_status == -1) {
         // still scanning
         draw_message(COLOR_YELLOW, "Scanning networks", true, true, 120, 120, lcd);
-        draw_back_button(lcd);
+        UIUtils::draw_back_button(lcd);
       } else if (scan_status >= 0) {
         // scan completed - process results
         int networks_found = max(scan_status, 0);
@@ -165,7 +166,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         display_needs_redraw = true;
         current_state = STATE_LIST;
       }
-      draw_back_button(lcd);
+      UIUtils::draw_back_button(lcd);
       break;
   }
 }
@@ -181,7 +182,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
   switch (current_state) {
     case STATE_SCANNING: {
-      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+      if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         WiFi.scanDelete();            // cancel ongoing scan
         display_needs_redraw = true;  // force redraw when returning to list
         current_state = STATE_LIST;
@@ -190,10 +191,10 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
     }
     case STATE_LIST: {
       // check network item touches
-      for (int i = 0; i < ITEMS_PER_PAGE; i++) {
+      for (int i = 0; i < LIST_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
-        if (is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
-          int network_index = (current_page * ITEMS_PER_PAGE) + i;
+        if (UIUtils::is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
+          int network_index = (current_page * LIST_SLOTS) + i;
 
           if (network_index < scanned_networks_amount) {
             selected_network = network_index;
@@ -214,26 +215,26 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       }
 
       // check button touches
-      if (is_point_in_rect(tx, ty, PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
+      if (UIUtils::is_point_in_rect(tx, ty, PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
         if (current_page > 0) {
           display_needs_redraw = true;
           current_page--;
         }
-      } else if (is_point_in_rect(tx, ty, NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
-        int max_pages = (scanned_networks_amount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE - 1;
+      } else if (UIUtils::is_point_in_rect(tx, ty, NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
+        int max_pages = (scanned_networks_amount + LIST_SLOTS - 1) / LIST_SLOTS - 1;
         if (current_page < max_pages) {
           display_needs_redraw = true;
           current_page++;
         }
-      } else if (is_point_in_rect(tx, ty, RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT)) {
+      } else if (UIUtils::is_point_in_rect(tx, ty, RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT)) {
         start_scan();
 
-      } else if (is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
+      } else if (UIUtils::is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
         current_state = STATE_SSID_MANUAL_ENTRY;
         kb.clear();
         kb.set_label("Enter network ssid");
         kb.set_max_length(MAX_SSID_LENGTH);
-      } else if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+      } else if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         // HERE WE WILL GET OUT OF THE WIFICONFIG INTERFACE
       }
       break;
@@ -303,7 +304,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
     }
 
     case STATE_ERROR: {
-      if (is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+      if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         display_needs_redraw = true;
         current_state = STATE_LIST;
       }
@@ -453,7 +454,7 @@ void WifiConfigScreen::draw_message(uint16_t color,
 
 void WifiConfigScreen::draw_network_list_header(lgfx::LGFX_Device* lcd) {
   // back button
-  draw_back_button(lcd);
+  UIUtils::draw_back_button(lcd);
 
   // draw header text
   int header_text_length = strlen("Select Network");
@@ -537,8 +538,8 @@ void WifiConfigScreen::draw_network_list(lgfx::LGFX_Device* lcd) {
 
   } else {
     // draw network items
-    int start_index = current_page * ITEMS_PER_PAGE;
-    int end_index = min(start_index + ITEMS_PER_PAGE, (int)scanned_networks_amount);
+    int start_index = current_page * LIST_SLOTS;
+    int end_index = min(start_index + (int)LIST_SLOTS, (int)scanned_networks_amount);
 
     for (int i = start_index; i < end_index; i++) {
       int item_index = i - start_index;
@@ -605,15 +606,6 @@ void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
   lcd->print("Enter SSID");
 }
 
-void WifiConfigScreen::draw_back_button(lgfx::LGFX_Device* lcd) {
-  lcd->setTextColor(COLOR_WHITE);
-  lcd->setColor(COLOR_WHITE);
-  lcd->setTextSize(2);
-
-  lcd->drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT);
-  lcd->setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
-  lcd->print("<-");
-}
 
 // drawing strength bars
 void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi,
@@ -699,17 +691,4 @@ void WifiConfigScreen::load_from_nvs() {
   saved_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
   prefs.end();
-}
-
-// ----------------------------------------------------------------------------
-// Utility Functions
-// ----------------------------------------------------------------------------
-
-bool WifiConfigScreen::is_point_in_rect(uint16_t touch_x,
-                                        uint16_t touch_y,
-                                        uint16_t rect_x,
-                                        uint16_t rect_y,
-                                        uint16_t rect_width,
-                                        uint16_t rect_height) {
-  return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
 }

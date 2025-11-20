@@ -5,8 +5,10 @@
 #include <Arduino.h>
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <Preferences.h>
 
 #include "config.h"
+#include "ui_utils.h"
 #include "keyboard.h"
 
 // screen states for pool configuration flow
@@ -29,7 +31,6 @@ class PoolConfigScreen {
 
   // pool storage
   pool_info_t pools[4];
-  static const uint8_t TOTAL_SLOTS = 4;
 
   // ui state
   pool_screen_state_t current_state;

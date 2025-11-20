@@ -124,11 +124,11 @@
 #define BACK_BUTTON_HEIGHT 30
 #define BACK_BUTTON_W 30
 
-// network list items
+//list items
+#define LIST_SLOTS 4
 #define LIST_START_X 5
 #define LIST_START_Y 40
 #define ITEM_HEIGHT 40
-#define ITEMS_PER_PAGE 4
 #define ITEM_GAP 2
 
 //pop-up menu
