@@ -11,7 +11,6 @@ Keyboard::Keyboard() {
     pressed_key_index = -1;
     press_timestamp = 0;
     requires_redraw = true;
-    last_touch_time = 0;
     mode_changed = false;
     needs_full_clear = true;
     label_text[0] = '\0';
@@ -612,18 +611,15 @@ void Keyboard::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
   // ignore touches outside keyboard area
   if (ty < KEYBOARD_Y_START) return;
 
-  // debouncing: check if enough time passed since last touch
-  unsigned long current_time = millis();
-  if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
-    return;  // ignore touch, too soon after last one
+  // debounce touch input
+  if (!UIUtils::touch_debounce()) {
+    return;
   }
 
   // get key index from touch
   int8_t key_index = find_touched_key(tx, ty);
 
   if (key_index >= 0) {
-    // update debounce timer
-    last_touch_time = current_time;
 
     // save press state for highlight
     pressed_key_index = key_index;

@@ -7,6 +7,7 @@
 #include <LovyanGFX.hpp>
 
 #include "config.h"
+#include "ui_utils.h"
 
 class MainMenu {
  private:
@@ -14,9 +15,6 @@ class MainMenu {
   int8_t selected_menu_item;  // -1 = none, 0-2 = menu items
   bool display_needs_redraw;
 
-  // touch debouncing
-  unsigned long last_touch_time;
-  static const uint16_t DEBOUNCE_DELAY = 200;
 
   // drawing methods
   void draw_menu_list(lgfx::LGFX_Device* lcd);

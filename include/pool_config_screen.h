@@ -45,9 +45,6 @@ class PoolConfigScreen {
   // keyboard widget
   Keyboard kb;
 
-  // touch debouncing
-  unsigned long last_touch_time;
-  static const uint16_t DEBOUNCE_DELAY = 200;
 
   // drawing methods
   void draw_back_button(lgfx::LGFX_Device* lcd);

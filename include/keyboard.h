@@ -7,6 +7,7 @@
 #include <LovyanGFX.hpp>
 
 #include "config.h"
+#include "ui_utils.h"
 
 // active keyboard layout state
 enum keyboard_mode_t { KB_LOWERCASE, KB_UPPERCASE, KB_NUMBERS };
@@ -60,9 +61,6 @@ class Keyboard {
   unsigned long press_timestamp;
   static const uint16_t PRESS_HIGHLIGHT_DURATION = KB_PRESS_HIGHLIGHT_MS;
 
-  // debounce
-  unsigned long last_touch_time;
-  static const uint16_t DEBOUNCE_DELAY = 200;  // milliseconds
 
   // layout definitions
   keyboard_key_t lowercase_keys[MAX_KEYS];

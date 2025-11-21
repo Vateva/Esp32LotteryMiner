@@ -30,6 +30,18 @@ void draw_header(lgfx::LGFX_Device* lcd, const char* title) {
   lcd->print(title);
 }
 
+// touch debounce
+bool UIUtils::touch_debounce() {
+  static unsigned long last_touch_time = 0;  // shared across all screens
+
+  unsigned long current_time = millis();
+  if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
+    return false;
+  }
+  last_touch_time = current_time;
+  return true;
+}
+
 // check if touch coordinates fall within rectangle bounds
 bool is_point_in_rect(uint16_t touch_x,
                       uint16_t touch_y,
@@ -37,8 +49,7 @@ bool is_point_in_rect(uint16_t touch_x,
                       uint16_t rect_y,
                       uint16_t rect_width,
                       uint16_t rect_height) {
-  return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y &&
-          touch_y < rect_y + rect_height);
+  return (touch_x >= rect_x && touch_x < rect_x + rect_width && touch_y >= rect_y && touch_y < rect_y + rect_height);
 }
 
 }  // namespace UIUtils

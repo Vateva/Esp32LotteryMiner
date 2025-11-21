@@ -9,7 +9,6 @@ WalletConfigScreen::WalletConfigScreen() {
   display_needs_redraw = true;
   popup_needs_redraw = false;
   selected_item_index = -1;
-  last_touch_time = 0;
 
   // initialize all 4 wallet slots to empty/default state
   for (int i = 0; i < LIST_SLOTS; i++) {
@@ -56,13 +55,10 @@ void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
 // handle touch input and route to appropriate state handler
 void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
-  // debounce touch input to prevent multiple rapid triggers
-  unsigned long current_time = millis();
-  if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
+  // debounce touch input
+  if (!UIUtils::touch_debounce()) {
     return;
   }
-  // update debounce timer
-  last_touch_time = current_time;
 
   switch (current_state) {
     case STATE_LIST:

@@ -4,13 +4,13 @@
 
 #include <Arduino.h>
 #define LGFX_USE_V1
+#include <Preferences.h>
+
 #include <LovyanGFX.hpp>
-#include <Preferences.h> 
 
 #include "config.h"
 #include "keyboard.h"
 #include "ui_utils.h"
-
 
 // screen states for wallet configuration flow
 enum wallet_screen_state_t {
@@ -45,10 +45,6 @@ class WalletConfigScreen {
 
   // keyboard widget
   Keyboard kb;
-
-  // touch debouncing
-  unsigned long last_touch_time;
-  static const uint16_t DEBOUNCE_DELAY = 200;
 
   // drawing methods
   void draw_back_button(lgfx::LGFX_Device* lcd);

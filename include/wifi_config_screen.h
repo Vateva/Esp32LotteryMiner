@@ -46,9 +46,6 @@ class WifiConfigScreen {
   Keyboard kb;                      // keyboard widget for password entry
   bool display_needs_redraw;        // redraw flag
 
-  // debouncing
-  unsigned long last_touch_time;
-  static const uint16_t DEBOUNCE_DELAY = 200;  // milliseconds
 
   // drawing helpers - render specific ui elements
   void draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, bool small, lgfx::LGFX_Device* lcd);

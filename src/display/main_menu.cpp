@@ -6,20 +6,44 @@
 MainMenu::MainMenu() {
   selected_menu_item = -1;  // -1 = none, 0-2 = menu items
   display_needs_redraw = true;
-  last_touch_time = 0;
 }
 
 // main draw function called every loop to render current state
-void MainMenu::draw(lgfx::LGFX_Device* lcd) {}
+void MainMenu::draw(lgfx::LGFX_Device* lcd) {
+  UIUtils::draw_header(lcd, "Main menu");
+  draw_menu_list(lcd);
+}
 
 // handle touch input and detect which menu item was touched
-void MainMenu::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {}
+void MainMenu::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
+  // debounce touch input to prevent multiple rapid triggers
+  if (!UIUtils::touch_debounce()) {
+    return;
+  }
+
+  // check if any menu item was touched
+  for (int i = 0; i < LIST_SLOTS; i++) {
+    uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
+    if (UIUtils::is_point_in_rect(tx, ty, LIST_START_X, item_y, SCREEN_WIDTH, ITEM_HEIGHT)) {
+      // menu item touched set selected_menu_index
+      selected_menu_item = i;
+    }
+  }
+  // check if back button was touched
+  if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
+    // exit main menu interface
+  }
+}
 
 // return currently selected menu item index
-int8_t MainMenu::get_selected_item() const {}
+int8_t MainMenu::get_selected_item() const {
+  return selected_menu_item;
+}
 
 // clear selection after navigation
-void MainMenu::reset_selection() {}
+void MainMenu::reset_selection() {
+  selected_menu_item = -1;
+}
 
 // draw list of 3 menu items
 void MainMenu::draw_menu_list(lgfx::LGFX_Device* lcd) {
@@ -49,6 +73,6 @@ void MainMenu::draw_menu_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_
   // menu options
   const char* menu_options[] = {"Start/Stop Mining", "Wallets", "Pools", "WiFi"};
 
-  lcd->setCursor(x + 3, y + 15);//x & y internal button margin
+  lcd->setCursor(x + 3, y + 15);  // x & y internal button margin
   lcd->print(menu_options[index]);
 }

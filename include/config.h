@@ -4,7 +4,47 @@
 
 #include <Arduino.h>
 
-// display configuration
+// ============================================================================
+// HARDWARE PIN DEFINITIONS (ESP32-S3 Zero)
+// ============================================================================
+
+// spi display pins
+#define PIN_LCD_SCLK 12
+#define PIN_LCD_MOSI 11
+#define PIN_LCD_MISO 13
+#define PIN_LCD_DC 6
+#define PIN_LCD_CS 5
+#define PIN_LCD_RST 4
+
+// i2c touch pins
+#define PIN_TOUCH_SDA 2
+#define PIN_TOUCH_SCL 1
+#define PIN_TOUCH_INT 3
+#define TOUCH_I2C_ADDR 0x38       // ft6336 i2c address
+
+// ============================================================================
+// HARDWARE CONFIGURATION
+// ============================================================================
+
+// spi configuration
+#define SPI_FREQUENCY_WRITE 40000000  // 40mhz write
+#define SPI_FREQUENCY_READ 16000000   // 16mhz read
+
+// touch configuration
+#define TOUCH_I2C_FREQUENCY 400000    // 400khz
+
+// touch coordinate ranges
+#define TOUCH_X_MIN 0
+#define TOUCH_X_MAX 239
+#define TOUCH_Y_MIN 0
+#define TOUCH_Y_MAX 319
+
+// touch debouncing
+#define DEBOUNCE_DELAY 200
+
+// ============================================================================
+// DISPLAY CONFIGURATION
+// ============================================================================
 
 // screen dimensions (landscape)
 #define SCREEN_WIDTH 320
@@ -25,7 +65,48 @@
 #define COLOR_LIGHTGRAY 0xBDF7
 #define COLOR_DARKGREEN 0x03E0
 
-// keyboard configuration
+// ============================================================================
+// UI LAYOUT
+// ============================================================================
+
+// header area
+#define HEADER_HEIGHT 39
+#define HEADER_TEXT_X 40
+#define HEADER_TEXT_Y 13
+#define HEADER_NETWORK_Y 10
+
+// back button at top
+#define BACK_BUTTON_X 2
+#define BACK_BUTTON_Y 3
+#define BACK_BUTTON_TEXT_X 5
+#define BACK_BUTTON_TEXT_Y 11
+#define BACK_BUTTON_HEIGHT 30
+#define BACK_BUTTON_W 30
+
+// list items
+#define LIST_SLOTS 4
+#define LIST_START_X 5
+#define LIST_START_Y 40
+#define ITEM_HEIGHT 40
+#define ITEM_GAP 2
+
+// pop-up menu
+#define POPUP_MENU_X 30
+#define POPUP_MENU_Y 90
+#define POPUP_MENU_HEIGHT 60
+#define POPUP_MENU_WIDTH 260
+
+#define POPUP_MENU_BUTTON_X (POPUP_MENU_X + 10)
+#define POPUP_MENU_BUTTON_Y (POPUP_MENU_Y + 15)
+#define POPUP_MENU_BUTTON_HEIGHT 30
+#define POPUP_MENU_BUTTON_WIDTH 50
+#define POPUP_MENU_BUTTON_GAP 10
+#define POPUP_MENU_BUTTON_TEXT_X (POPUP_MENU_BUTTON_X + 5)
+#define POPUP_MENU_BUTTON_TEXT_Y (POPUP_MENU_BUTTON_Y + 10)
+
+// ============================================================================
+// KEYBOARD CONFIGURATION
+// ============================================================================
 
 // keyboard layout geometry
 #define KB_INPUT_AREA_HEIGHT 62
@@ -60,7 +141,9 @@
 #define KB_KEY_PRESSED_COLOR COLOR_DARKGREEN2
 #define KB_KEY_TEXT_COLOR COLOR_BLACK
 
-// input length limits
+// ============================================================================
+// INPUT LENGTH LIMITS
+// ============================================================================
 
 // wifi config limits (802.11 std)
 #define MAX_SSID_LENGTH 31        // 31 chars + null
@@ -74,76 +157,12 @@
 #define MAX_WALLET_ADDRESS_LENGTH 62  // 62 chars + null (taproot)
 #define MAX_WALLET_NAME_LENGTH 20     // 20 chars + null
 
-// pin definitions (esp32-s3 zero)
-
-// spi display pins
-#define PIN_LCD_SCLK 12
-#define PIN_LCD_MOSI 11
-#define PIN_LCD_MISO 13
-#define PIN_LCD_DC 6
-#define PIN_LCD_CS 5
-#define PIN_LCD_RST 4
-
-// i2c touch pins
-#define PIN_TOUCH_SDA 2
-#define PIN_TOUCH_SCL 1
-#define PIN_TOUCH_INT 3
-#define TOUCH_I2C_ADDR 0x38       // ft6336 i2c address
-
-// display hardware configuration
-
-// spi configuration
-#define SPI_FREQUENCY_WRITE 40000000  // 40mhz write
-#define SPI_FREQUENCY_READ 16000000   // 16mhz read
-
-// touch configuration
-#define TOUCH_I2C_FREQUENCY 400000    // 400khz
-
-// touch coordinate ranges
-#define TOUCH_X_MIN 0
-#define TOUCH_X_MAX 239
-#define TOUCH_Y_MIN 0
-#define TOUCH_Y_MAX 319
+// ============================================================================
+// NETWORK CONFIGURATION
+// ============================================================================
 
 // network timing
 #define WIFI_CONNECT_TIMEOUT_MS 10000     // wifi connect timeout (ms)
-
-//ui
-
-// header area
-#define HEADER_HEIGHT 39
-#define HEADER_TEXT_X 40
-#define HEADER_TEXT_Y 13
-#define HEADER_NETWORK_Y 10
-
-// back button at top
-#define BACK_BUTTON_X 2
-#define BACK_BUTTON_Y 3
-#define BACK_BUTTON_TEXT_X 5
-#define BACK_BUTTON_TEXT_Y 11
-#define BACK_BUTTON_HEIGHT 30
-#define BACK_BUTTON_W 30
-
-//list items
-#define LIST_SLOTS 4
-#define LIST_START_X 5
-#define LIST_START_Y 40
-#define ITEM_HEIGHT 40
-#define ITEM_GAP 2
-
-//pop-up menu
-#define POPUP_MENU_X 30
-#define POPUP_MENU_Y 90
-#define POPUP_MENU_HEIGHT 60
-#define POPUP_MENU_WIDTH 260
-
-#define POPUP_MENU_BUTTON_X (POPUP_MENU_X + 10)
-#define POPUP_MENU_BUTTON_Y (POPUP_MENU_Y + 15)
-#define POPUP_MENU_BUTTON_HEIGHT 30
-#define POPUP_MENU_BUTTON_WIDTH 50
-#define POPUP_MENU_BUTTON_GAP 10
-#define POPUP_MENU_BUTTON_TEXT_X (POPUP_MENU_BUTTON_X + 5)
-#define POPUP_MENU_BUTTON_TEXT_Y (POPUP_MENU_BUTTON_Y + 10)
 
 
 #endif

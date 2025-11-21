@@ -48,7 +48,6 @@ WifiConfigScreen::WifiConfigScreen() {
   selected_network = -1;
   scanned_networks_amount = 0;
   display_needs_redraw = true;  // redraw flag
-  last_touch_time = 0;          // initialize debounce timer
   saved_ssid[0] = '\0';
   saved_password[0] = '\0';
 }
@@ -172,14 +171,10 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 }
 
 void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
-  // debounce
-  unsigned long current_time = millis();
-  if ((current_time - last_touch_time) < DEBOUNCE_DELAY) {
+  // debounce touch input
+  if (!UIUtils::touch_debounce()) {
     return;
   }
-  // update debounce timer
-  last_touch_time = current_time;
-
   switch (current_state) {
     case STATE_SCANNING: {
       if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
