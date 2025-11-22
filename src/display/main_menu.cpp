@@ -5,7 +5,7 @@
 // constructor
 MainMenu::MainMenu() {
   selected_menu_item = -1;  // -1 = none, 0-2 = menu items
-  display_needs_redraw = true;
+  mark_for_redraw();
 }
 
 // main draw function called every loop to render current state
@@ -75,4 +75,7 @@ void MainMenu::draw_menu_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_
 
   lcd->setCursor(x + 3, y + 15);  // x & y internal button margin
   lcd->print(menu_options[index]);
+}
+void MainMenu::mark_for_redraw() {
+  display_needs_redraw = true;
 }

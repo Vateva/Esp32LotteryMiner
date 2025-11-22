@@ -12,7 +12,7 @@
 #include "keyboard.h"
 
 // screen states for pool configuration flow
-enum pool_screen_state_t {
+enum class pool_screen_state_t {
   STATE_LIST,              // displaying pool list
   STATE_ENTERING_NAME,     // keyboard input for pool name
   STATE_ENTERING_ADDRESS,  // keyboard input for pool address
@@ -52,6 +52,7 @@ class PoolConfigScreen {
   void draw_list(lgfx::LGFX_Device* lcd);
   void draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_popup_menu(lgfx::LGFX_Device* lcd);
+  
 
   // touch detection helpers
   bool is_point_in_rect(uint16_t touch_x,
@@ -63,7 +64,7 @@ class PoolConfigScreen {
 
   // nvs persistence
   void save_to_nvs(uint8_t index);
-  void load_from_nvs();
+  
 
  public:
   // constructor
@@ -71,7 +72,10 @@ class PoolConfigScreen {
 
   // main interface
   void draw(lgfx::LGFX_Device* lcd);
+  void mark_for_redraw();
   void handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd);
+
+  void load_from_nvs();
 };
 
 #endif

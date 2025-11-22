@@ -611,10 +611,6 @@ void Keyboard::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd) {
   // ignore touches outside keyboard area
   if (ty < KEYBOARD_Y_START) return;
 
-  // debounce touch input
-  if (!UIUtils::touch_debounce()) {
-    return;
-  }
 
   // get key index from touch
   int8_t key_index = find_touched_key(tx, ty);

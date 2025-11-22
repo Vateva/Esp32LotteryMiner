@@ -1,10 +1,13 @@
-// main.cpp: wifi config screen test
+// main.cpp: complete ui test with navigation
 #define LGFX_USE_V1
 #include <WiFi.h>
 
 #include <LovyanGFX.hpp>
 
 #include "config.h"
+#include "main_menu.h"
+#include "pool_config_screen.h"
+#include "wallet_config_screen.h"
 #include "wifi_config_screen.h"
 
 // lgfx class for ili9341 + ft6336 touch
@@ -55,8 +58,7 @@ class LGFX : public lgfx::LGFX_Device {
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
 
-      cfg.invert = true;  // Enable color inversion
-      // cfg.rgb_order = false;
+      cfg.invert = true;  // enable color inversion
 
       _panel_instance.config(cfg);
     }
@@ -87,9 +89,70 @@ class LGFX : public lgfx::LGFX_Device {
   }
 };
 
+// screen navigation states - tracks which screen is currently active
+enum app_screen_t {
+  SCREEN_HOME,           // home screen with main menu button
+  SCREEN_MAIN_MENU,      // main menu with 4 options
+  SCREEN_WIFI_CONFIG,    // wifi configuration
+  SCREEN_WALLET_CONFIG,  // wallet configuration
+  SCREEN_POOL_CONFIG,    // pool configuration
+  SCREEN_MINING          // placeholder for mining screen
+};
+
 // global instances
 LGFX lcd;
+MainMenu main_menu;
 WifiConfigScreen wifi_screen;
+WalletConfigScreen wallet_screen;
+PoolConfigScreen pool_screen;
+
+// navigation state
+app_screen_t current_screen = SCREEN_HOME;
+app_screen_t previous_screen = SCREEN_HOME;
+bool screen_needs_redraw = true;  // flag to trigger full screen clear when changing screens
+
+// home screen button coordinates
+#define HOME_BUTTON_X 85
+#define HOME_BUTTON_Y 100
+#define HOME_BUTTON_WIDTH 150
+#define HOME_BUTTON_HEIGHT 40
+
+// draw home screen with centered text and main menu button
+void draw_home_screen() {
+  // only redraw when needed to prevent flickering
+  if (screen_needs_redraw) {
+    lcd.fillScreen(COLOR_BLACK);
+    screen_needs_redraw = false;
+
+    // draw placeholder text centered at top
+    lcd.setTextColor(COLOR_WHITE);
+    lcd.setTextSize(2);
+    lcd.setCursor(40, 40);
+    lcd.print("Placeholder Home");
+    lcd.setCursor(85, 60);
+    lcd.print("Page");
+
+    // draw main menu button
+    lcd.drawRect(HOME_BUTTON_X, HOME_BUTTON_Y, HOME_BUTTON_WIDTH, HOME_BUTTON_HEIGHT, COLOR_WHITE);
+    lcd.setCursor(HOME_BUTTON_X + 20, HOME_BUTTON_Y + 12);
+    lcd.print("Main Menu");
+  }
+}
+
+// handle touch input on home screen
+void handle_home_touch(uint16_t tx, uint16_t ty) {
+  // check if main menu button was touched
+  if (tx >= HOME_BUTTON_X && tx < HOME_BUTTON_X + HOME_BUTTON_WIDTH && ty >= HOME_BUTTON_Y &&
+      ty < HOME_BUTTON_Y + HOME_BUTTON_HEIGHT) {
+    // navigate to main menu
+    previous_screen = current_screen;
+    current_screen = SCREEN_MAIN_MENU;
+    main_menu.mark_for_redraw();
+    screen_needs_redraw = true;
+
+    Serial.println("[nav] home -> main menu");
+  }
+}
 
 // setup
 void setup() {
@@ -97,10 +160,8 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n================================");
-  Serial.println("   wifi config screen test");
+  Serial.println("   complete ui test");
   Serial.println("================================");
-
- 
 
   // init display
   lcd.init();
@@ -118,46 +179,190 @@ void setup() {
 
   // set wifi mode to station
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
 
   Serial.println("[ok] wifi initialized");
 
+  // load saved nvs parameters
   wifi_screen.load_from_nvs();
+  wallet_screen.load_from_nvs();
+  pool_screen.load_from_nvs();
 
-  // start network scan
-  wifi_screen.start_scan();
-  Serial.println("[info] starting wifi scan...");
+  Serial.println("[ok] all screens initialized");
+  Serial.println("[info] starting on home screen");
   Serial.println();
 }
 
 // main loop
 void loop() {
-  uint16_t x, y;
+  uint16_t x = 0, y = 0;
 
-  // check for touch
-  lcd.getTouch(&x, &y);
+  // check for touch input
+  bool touched = lcd.getTouch(&x, &y);
 
-  // pass touch to wifi screen handler
-  wifi_screen.handle_touch(x, y, &lcd);
+  // handle current screen based on navigation state
+  switch (current_screen) {
+    case SCREEN_HOME:
+      // draw home screen
+      draw_home_screen();
 
-  // draw current wifi screen state
-  wifi_screen.draw(&lcd);
+      // handle touch if detected
+      if (touched) {
+        handle_home_touch(x, y);
+      }
+      break;
 
-  // check if connected
-  if (WiFi.status() == WL_CONNECTED) {
-    // print connection info once
-    static bool info_printed = false;
-    if (!info_printed) {
-      Serial.println("\n[success] wifi connected!");
-      Serial.print("  ssid: ");
-      Serial.println(WiFi.SSID());
-      Serial.print("  ip address: ");
-      Serial.println(WiFi.localIP());
-      Serial.print("  rssi: ");
-      Serial.print(WiFi.RSSI());
-      Serial.println(" dBm");
-      info_printed = true;
+    case SCREEN_MAIN_MENU:
+      // draw main menu
+      main_menu.draw(&lcd);
+
+      // handle touch if detected
+      if (touched) {
+        main_menu.handle_touch(x, y, &lcd);
+
+        // check if user selected a menu item
+        int8_t selected = main_menu.get_selected_item();
+        if (selected >= 0) {
+          // navigate based on selection
+          previous_screen = current_screen;
+
+          switch (selected) {
+            case 0:
+              // start/stop mining - placeholder
+              current_screen = SCREEN_MINING;
+              // mining.mark_for_redraw();
+              screen_needs_redraw = true;
+              Serial.println("[nav] main menu -> mining");
+              break;
+
+            case 1:
+              // wallets
+              current_screen = SCREEN_WALLET_CONFIG;
+              wallet_screen.mark_for_redraw();
+              screen_needs_redraw = true;
+              Serial.println("[nav] main menu -> wallets");
+              break;
+
+            case 2:
+              // pools
+              current_screen = SCREEN_POOL_CONFIG;
+              pool_screen.mark_for_redraw();
+              screen_needs_redraw = true;
+              Serial.println("[nav] main menu -> pools");
+              break;
+
+            case 3:
+              // wifi
+              current_screen = SCREEN_WIFI_CONFIG;
+              wifi_screen.start_scan();
+              wifi_screen.mark_for_redraw();
+              screen_needs_redraw = true;
+              Serial.println("[nav] main menu -> wifi");
+              break;
+
+            default:
+              break;
+          }
+
+          // clear selection after navigation
+          main_menu.reset_selection();
+        }
+      }
+      break;
+
+    case SCREEN_WIFI_CONFIG:
+      // draw wifi config screen
+      wifi_screen.draw(&lcd);
+
+      // handle touch if detected
+      if (touched) {
+        wifi_screen.handle_touch(x, y, &lcd);
+      }
+
+      // check if connected
+      if (WiFi.status() == WL_CONNECTED) {
+        // print connection info once
+        static bool info_printed = false;
+        if (!info_printed) {
+          Serial.println("\n[success] wifi connected!");
+          Serial.print("  ssid: ");
+          Serial.println(WiFi.SSID());
+          Serial.print("  ip address: ");
+          Serial.println(WiFi.localIP());
+          Serial.print("  rssi: ");
+          Serial.print(WiFi.RSSI());
+          Serial.println(" dBm");
+          info_printed = true;
+        }
+      }
+      break;
+
+    case SCREEN_WALLET_CONFIG:
+      // draw wallet config screen
+      wallet_screen.draw(&lcd);
+
+      // handle touch if detected
+      if (touched) {
+        wallet_screen.handle_touch(x, y, &lcd);
+      }
+      break;
+
+    case SCREEN_POOL_CONFIG:
+      // draw pool config screen
+      pool_screen.draw(&lcd);
+
+      // handle touch if detected
+      if (touched) {
+        pool_screen.handle_touch(x, y, &lcd);
+      }
+      break;
+
+    case SCREEN_MINING:
+      // placeholder mining screen
+      if (screen_needs_redraw) {
+        lcd.fillScreen(COLOR_BLACK);
+        screen_needs_redraw = false;
+
+        // draw placeholder text
+        lcd.setTextColor(COLOR_WHITE);
+        lcd.setTextSize(2);
+        lcd.setCursor(60, 100);
+        lcd.print("Mining Screen");
+        lcd.setCursor(70, 120);
+        lcd.print("Placeholder");
+
+        // draw back button
+        lcd.drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT, COLOR_WHITE);
+        lcd.setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
+        lcd.print("<-");
+      }
+
+      // handle touch for back button
+      if (touched) {
+        if (x >= BACK_BUTTON_X && x < BACK_BUTTON_X + BACK_BUTTON_W && y >= BACK_BUTTON_Y &&
+            y < BACK_BUTTON_Y + BACK_BUTTON_HEIGHT) {
+          // return to main menu
+          current_screen = SCREEN_MAIN_MENU;
+          screen_needs_redraw = true;
+          Serial.println("[nav] mining -> main menu");
+        }
+      }
+      break;
+  }
+
+  // universal back button handling for config screens
+  // this checks if back button was touched while in any config screen and returns to main menu
+  if (current_screen == SCREEN_WIFI_CONFIG || current_screen == SCREEN_WALLET_CONFIG ||
+      current_screen == SCREEN_POOL_CONFIG) {
+    if (touched) {
+      // check if back button area was touched
+      if (x >= BACK_BUTTON_X && x < BACK_BUTTON_X + BACK_BUTTON_W && y >= BACK_BUTTON_Y &&
+          y < BACK_BUTTON_Y + BACK_BUTTON_HEIGHT) {
+        // return to main menu
+        current_screen = SCREEN_MAIN_MENU;
+        main_menu.mark_for_redraw();
+        screen_needs_redraw = true;
+        Serial.println("[nav] config screen -> main menu");
+      }
     }
   }
 }

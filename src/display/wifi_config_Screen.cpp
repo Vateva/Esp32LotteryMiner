@@ -43,11 +43,11 @@ const uint16_t BARR_4_X_OFFSET = 9;
 
 // constructor - initialize screen state
 WifiConfigScreen::WifiConfigScreen() {
-  current_state = STATE_SCANNING;
+  current_state = wifi_screen_state_t::STATE_SCANNING;
   current_page = 0;
   selected_network = -1;
   scanned_networks_amount = 0;
-  display_needs_redraw = true;  // redraw flag
+  mark_for_redraw();  // redraw flag
   saved_ssid[0] = '\0';
   saved_password[0] = '\0';
 }
@@ -59,15 +59,15 @@ WifiConfigScreen::WifiConfigScreen() {
 // main draw method - renders current state
 void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
-    case STATE_SCANNING: {
+    case wifi_screen_state_t::STATE_SCANNING: {
       int scan_status = WiFi.scanComplete();
 
       if (scan_status == -2) {
         // scan failed
         Serial.println("wifi scan failed.");
         WiFi.scanDelete();
-        display_needs_redraw = true;
-        current_state = STATE_ERROR;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_ERROR;
         state_change_time = millis();
       } else if (scan_status == -1) {
         // still scanning
@@ -87,52 +87,52 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
 
         // cleanup and transition
         WiFi.scanDelete();
-        display_needs_redraw = true;
+        mark_for_redraw();
 
         // only go to STATE_LIST if we are NOT auto-connecting
         if (!is_autoconnecting) {
-          current_state = STATE_LIST;
+          current_state = wifi_screen_state_t::STATE_LIST;
         }
         // if auto-connecting, we do nothing,
-        // leaving the state as STATE_CONNECTING
+        // leaving the state as wifi_screen_state_t::STATE_CONNECTING
       }
       break;
     }
 
-    case STATE_LIST:
+    case wifi_screen_state_t::STATE_LIST:
       draw_network_list_header(lcd);
       draw_network_list(lcd);
       draw_bottom_buttons(lcd);
       break;
 
-    case STATE_PASSWORD:
+    case wifi_screen_state_t::STATE_PASSWORD:
       kb.draw(lcd);
       break;
 
-    case STATE_SSID_MANUAL_ENTRY:
+    case wifi_screen_state_t::STATE_SSID_MANUAL_ENTRY:
       kb.draw(lcd);
       break;
 
-    case STATE_PASSWORD_MANUAL_ENTRY:
+    case wifi_screen_state_t::STATE_PASSWORD_MANUAL_ENTRY:
       kb.draw(lcd);
       break;
 
-    case STATE_CONNECTING: {
+    case wifi_screen_state_t::STATE_CONNECTING: {
       int status = WiFi.status();
 
       if (status == WL_CONNECTED) {
-        display_needs_redraw = true;
-        current_state = STATE_SUCCESS;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_SUCCESS;
         state_change_time = millis();
       } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
         WiFi.disconnect(true);  // Clean up the failed connection
-        display_needs_redraw = true;
-        current_state = STATE_ERROR;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_ERROR;
         state_change_time = millis();
       } else if (millis() - connection_start_time > WIFI_CONNECT_TIMEOUT_MS) {
         WiFi.disconnect(true);  // Clean up the failed connection
-        display_needs_redraw = true;
-        current_state = STATE_ERROR;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_ERROR;
         state_change_time = millis();
       } else {
         // still connecting, draw animation
@@ -142,16 +142,16 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       break;
     }
 
-    case STATE_SUCCESS:
+    case wifi_screen_state_t::STATE_SUCCESS:
       save_to_nvs();
       draw_message(COLOR_GREEN, "Connected!", false, true, 120, 180, lcd);
       if (millis() - state_change_time > 1500) {
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_LIST;
       }
       break;
 
-    case STATE_ERROR:
+    case wifi_screen_state_t::STATE_ERROR:
       // check if we came from scanning (no selected network) or from connecting
       if (selected_network == -1) {
         // error from scanning
@@ -162,8 +162,8 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       }
 
       if (millis() - state_change_time > 5000) {
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_LIST;
       }
       UIUtils::draw_back_button(lcd);
       break;
@@ -176,15 +176,15 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
     return;
   }
   switch (current_state) {
-    case STATE_SCANNING: {
+    case wifi_screen_state_t::STATE_SCANNING: {
       if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
         WiFi.scanDelete();            // cancel ongoing scan
-        display_needs_redraw = true;  // force redraw when returning to list
-        current_state = STATE_LIST;
+        mark_for_redraw();  // force redraw when returning to list
+        current_state = wifi_screen_state_t::STATE_LIST;
       }
       break;
     }
-    case STATE_LIST: {
+    case wifi_screen_state_t::STATE_LIST: {
       // check network item touches
       for (int i = 0; i < LIST_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
@@ -196,10 +196,10 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
             if (scanned_networks[network_index].encryption == WIFI_AUTH_OPEN) {
               connect(scanned_networks[selected_network].ssid, "");
-              display_needs_redraw = true;
-              current_state = STATE_CONNECTING;
+              mark_for_redraw();
+              current_state = wifi_screen_state_t::STATE_CONNECTING;
             } else {
-              current_state = STATE_PASSWORD;
+              current_state = wifi_screen_state_t::STATE_PASSWORD;
               kb.clear();
               kb.set_label("Enter network password");
               kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
@@ -212,20 +212,20 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       // check button touches
       if (UIUtils::is_point_in_rect(tx, ty, PREV_BUTTON_X, BOTTOM_BUTTONS_Y, PREV_BUTTON_W, BUTTON_HEIGHT)) {
         if (current_page > 0) {
-          display_needs_redraw = true;
+          mark_for_redraw();
           current_page--;
         }
       } else if (UIUtils::is_point_in_rect(tx, ty, NEXT_BUTTON_X, BOTTOM_BUTTONS_Y, NEXT_BUTTON_W, BUTTON_HEIGHT)) {
         int max_pages = (scanned_networks_amount + LIST_SLOTS - 1) / LIST_SLOTS - 1;
         if (current_page < max_pages) {
-          display_needs_redraw = true;
+          mark_for_redraw();
           current_page++;
         }
       } else if (UIUtils::is_point_in_rect(tx, ty, RESCAN_BUTTON_X, BOTTOM_BUTTONS_Y, RESCAN_BUTTON_W, BUTTON_HEIGHT)) {
         start_scan();
 
       } else if (UIUtils::is_point_in_rect(tx, ty, MANUAL_BUTTON_X, BOTTOM_BUTTONS_Y, MANUAL_BUTTON_W, BUTTON_HEIGHT)) {
-        current_state = STATE_SSID_MANUAL_ENTRY;
+        current_state = wifi_screen_state_t::STATE_SSID_MANUAL_ENTRY;
         kb.clear();
         kb.set_label("Enter network ssid");
         kb.set_max_length(MAX_SSID_LENGTH);
@@ -234,13 +234,13 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       }
       break;
     }
-    case STATE_PASSWORD: {  // handle touch in password entering state
+    case wifi_screen_state_t::STATE_PASSWORD: {  // handle touch in password entering state
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user pressed back/cancel, return to network list
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_LIST;
         kb.clear();  // clears buffer and cancelled flag
       } else if (kb.is_complete()) {
         const char* password = kb.get_text();
@@ -248,27 +248,27 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
         connect(scanned_networks[selected_network].ssid, typed_ssid_password);  // initiates wifi connection
-        display_needs_redraw = true;
-        current_state = STATE_CONNECTING;  // show connecting animation
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_CONNECTING;  // show connecting animation
         kb.reset_complete();
       }
       break;
     }
 
-    case STATE_SSID_MANUAL_ENTRY: {
+    case wifi_screen_state_t::STATE_SSID_MANUAL_ENTRY: {
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user pressed back/cancel, return to network list
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_LIST;
         kb.clear();  // clears buffer and cancelled flag
       } else if (kb.is_complete()) {
         const char* ssid = kb.get_text();
         strncpy(manual_ssid, ssid, MAX_SSID_LENGTH);
         manual_ssid[MAX_SSID_LENGTH] = '\0';
 
-        current_state = STATE_PASSWORD_MANUAL_ENTRY;
+        current_state = wifi_screen_state_t::STATE_PASSWORD_MANUAL_ENTRY;
         kb.clear();  // show connecting animation
         kb.set_label("Enter network password");
         kb.set_max_length(MAX_WIFI_PASSWORD_LENGTH);
@@ -276,12 +276,12 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       }
       break;
     }
-    case STATE_PASSWORD_MANUAL_ENTRY: {
+    case wifi_screen_state_t::STATE_PASSWORD_MANUAL_ENTRY: {
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user pressed back/cancel, go back to ssid entry
-        current_state = STATE_SSID_MANUAL_ENTRY;
+        current_state = wifi_screen_state_t::STATE_SSID_MANUAL_ENTRY;
         kb.clear();
         kb.set_label("Enter network ssid");
         kb.set_max_length(MAX_SSID_LENGTH);
@@ -291,17 +291,17 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH] = '\0';
 
         connect(manual_ssid, typed_ssid_password);  // initiates wifi connection
-        display_needs_redraw = true;
-        current_state = STATE_CONNECTING;  // show connecting animation
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_CONNECTING;  // show connecting animation
         kb.reset_complete();
       }
       break;
     }
 
-    case STATE_ERROR: {
+    case wifi_screen_state_t::STATE_ERROR: {
       if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wifi_screen_state_t::STATE_LIST;
       }
       break;
     }
@@ -310,8 +310,8 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
 // initiates async wifi network scan
 void WifiConfigScreen::start_scan() {
-  display_needs_redraw = true;
-  current_state = STATE_SCANNING;
+  mark_for_redraw();
+  current_state = wifi_screen_state_t::STATE_SCANNING;
   WiFi.scanNetworks(true, false);
 }
 
@@ -338,9 +338,9 @@ bool WifiConfigScreen::try_auto_connect() {
   if (strlen(saved_ssid) > 0) {
     for (int i = 0; i < scanned_networks_amount; i++) {
       if (strcmp(scanned_networks[i].ssid, saved_ssid) == 0) {
-        current_state = STATE_CONNECTING;  // show connecting animation
+        current_state = wifi_screen_state_t::STATE_CONNECTING;  // show connecting animation
         connect(saved_ssid, saved_password);
-        display_needs_redraw = true;
+        mark_for_redraw();
 
         return true;  // found network to connect to
       }
@@ -654,6 +654,10 @@ void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi,
     lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_GREEN);
     lcd->fillRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h, COLOR_GREEN);
   }
+}
+
+void WifiConfigScreen::mark_for_redraw() {
+  display_needs_redraw = true;
 }
 
 // ----------------------------------------------------------------------------

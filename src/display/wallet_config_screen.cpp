@@ -2,11 +2,10 @@
 
 #include "wallet_config_screen.h"
 
-
 // constructor
 WalletConfigScreen::WalletConfigScreen() {
   // initialize state variables
-  display_needs_redraw = true;
+  mark_for_redraw();
   popup_needs_redraw = false;
   selected_item_index = -1;
 
@@ -17,31 +16,28 @@ WalletConfigScreen::WalletConfigScreen() {
     wallets[i].is_active = false;
     wallets[i].is_configured = false;
   }
-
-  // load saved wallets from nvs if any exist
-  load_from_nvs();
 }
 
 // main draw function called every loop to render current state
 void WalletConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
-    case STATE_LIST:
+    case wallet_screen_state_t::STATE_LIST:
       // draw wallet list view with header
       UIUtils::draw_header(lcd, "Wallets");
       draw_list(lcd);
       break;
 
-    case STATE_ENTERING_NAME:
+    case wallet_screen_state_t::STATE_ENTERING_NAME:
       // show keyboard for wallet name input
       kb.draw(lcd);
       break;
 
-    case STATE_ENTERING_ADDRESS:
+    case wallet_screen_state_t::STATE_ENTERING_ADDRESS:
       // show keyboard for wallet address input
       kb.draw(lcd);
       break;
 
-    case STATE_POPUP_MENU:
+    case wallet_screen_state_t::STATE_POPUP_MENU:
       // only redraw popup once to prevent flickering
       if (popup_needs_redraw) {
         UIUtils::draw_header(lcd, "Wallets");
@@ -61,7 +57,7 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
   }
 
   switch (current_state) {
-    case STATE_LIST:
+    case wallet_screen_state_t::STATE_LIST:
       // check if any wallet item was touched
       for (int i = 0; i < LIST_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
@@ -69,7 +65,7 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
           // wallet item touched open popup menu
           selected_item_index = i;
           popup_needs_redraw = true;
-          current_state = STATE_POPUP_MENU;
+          current_state = wallet_screen_state_t::STATE_POPUP_MENU;
         }
       }
       // check if back button was touched
@@ -78,14 +74,14 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       }
       break;
 
-    case STATE_ENTERING_NAME:
+    case wallet_screen_state_t::STATE_ENTERING_NAME:
       // pass touch to keyboard for name input
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user cancelled return to list
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wallet_screen_state_t::STATE_LIST;
         kb.clear();
       } else if (kb.is_complete()) {
         // name entered successfully save to temp and move to address entry
@@ -93,7 +89,7 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
         strncpy(temp_name, wallet_name, MAX_WALLET_NAME_LENGTH);
         temp_name[MAX_WALLET_NAME_LENGTH] = '\0';
 
-        current_state = STATE_ENTERING_ADDRESS;
+        current_state = wallet_screen_state_t::STATE_ENTERING_ADDRESS;
         kb.clear();
         kb.set_label("Enter wallet address");
         kb.set_max_length(MAX_WALLET_ADDRESS_LENGTH);
@@ -101,14 +97,14 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       }
       break;
 
-    case STATE_ENTERING_ADDRESS:
+    case wallet_screen_state_t::STATE_ENTERING_ADDRESS:
       // pass touch to keyboard for address input
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user cancelled go back to name entry
-        display_needs_redraw = true;
-        current_state = STATE_ENTERING_NAME;
+        mark_for_redraw();
+        current_state = wallet_screen_state_t::STATE_ENTERING_NAME;
         kb.clear();
       } else if (kb.is_complete()) {
         // address entered successfully save wallet data
@@ -137,22 +133,23 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
 
         // save to nvs and return to list
         save_to_nvs(selected_item_index);
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = wallet_screen_state_t::STATE_LIST;
         kb.reset_complete();
       }
       break;
 
-    case STATE_POPUP_MENU:
+    case wallet_screen_state_t::STATE_POPUP_MENU:
       if (wallets[selected_item_index].is_configured) {
         // configured wallet has 4 buttons: select edit delete back
         for (int i = 0; i < 4; i++) {
-          if (UIUtils::is_point_in_rect(tx,
-                               ty,
-                               POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                               POPUP_MENU_BUTTON_Y,
-                               POPUP_MENU_BUTTON_WIDTH,
-                               POPUP_MENU_BUTTON_HEIGHT)) {
+          if (UIUtils::is_point_in_rect(
+                  tx,
+                  ty,
+                  POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                  POPUP_MENU_BUTTON_Y,
+                  POPUP_MENU_BUTTON_WIDTH,
+                  POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 0:
                 // select button: deactivate all wallets then activate this one
@@ -160,13 +157,13 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                   wallets[j].is_active = false;
                 }
                 wallets[selected_item_index].is_active = true;
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = wallet_screen_state_t::STATE_LIST;
+                mark_for_redraw();
                 break;
 
               case 1:
                 // edit button: start keyboard flow to edit wallet
-                current_state = STATE_ENTERING_NAME;
+                current_state = wallet_screen_state_t::STATE_ENTERING_NAME;
                 kb.clear();
                 kb.set_label("Enter wallet name");
                 kb.set_max_length(MAX_WALLET_NAME_LENGTH);
@@ -179,14 +176,15 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
                 wallets[selected_item_index].address[0] = '\0';
                 wallets[selected_item_index].is_active = false;
                 wallets[selected_item_index].is_configured = false;
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = wallet_screen_state_t::STATE_LIST;
+                save_to_nvs(selected_item_index);
+                mark_for_redraw();
                 break;
 
               case 3:
                 // back button: close popup return to list
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = wallet_screen_state_t::STATE_LIST;
+                mark_for_redraw();
                 break;
 
               default:
@@ -198,16 +196,17 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       } else {
         // empty wallet has 2 buttons: add and back centered in positions 1 and 2
         for (int i = 1; i < 3; i++) {
-          if (UIUtils::is_point_in_rect(tx,
-                               ty,
-                               POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                               POPUP_MENU_BUTTON_Y,
-                               POPUP_MENU_BUTTON_WIDTH,
-                               POPUP_MENU_BUTTON_HEIGHT)) {
+          if (UIUtils::is_point_in_rect(
+                  tx,
+                  ty,
+                  POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                  POPUP_MENU_BUTTON_Y,
+                  POPUP_MENU_BUTTON_WIDTH,
+                  POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 1:
                 // add button: start keyboard flow to create new wallet
-                current_state = STATE_ENTERING_NAME;
+                current_state = wallet_screen_state_t::STATE_ENTERING_NAME;
                 kb.clear();
                 kb.set_label("Enter wallet name");
                 kb.set_max_length(MAX_WALLET_NAME_LENGTH);
@@ -216,8 +215,8 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
 
               case 2:
                 // back button: close popup return to list
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = wallet_screen_state_t::STATE_LIST;
+                mark_for_redraw();
                 break;
 
               default:
@@ -229,7 +228,6 @@ void WalletConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Devic
       break;
   }
 }
-
 
 // draw list of all 4 wallet slots
 void WalletConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
@@ -340,29 +338,32 @@ void WalletConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   }
 }
 
+void WalletConfigScreen::mark_for_redraw() {
+  display_needs_redraw = true;
+}
 
 // save wallet data to nvs storage
 void WalletConfigScreen::save_to_nvs(uint8_t index) {
   Preferences prefs;
   prefs.begin("esp32btcminer", false);  // open namespace in read/write mode
-  
+
   // create unique keys for this wallet slot
   char name_key[16];
   char addr_key[16];
   char active_key[16];
   char config_key[16];
-  
+
   sprintf(name_key, "wallet%d_name", index);
   sprintf(addr_key, "wallet%d_addr", index);
   sprintf(active_key, "wallet%d_act", index);
   sprintf(config_key, "wallet%d_cfg", index);
-  
+
   // save wallet data
   prefs.putString(name_key, wallets[index].name);
   prefs.putString(addr_key, wallets[index].address);
   prefs.putBool(active_key, wallets[index].is_active);
   prefs.putBool(config_key, wallets[index].is_configured);
-  
+
   prefs.end();  // close namespace
 }
 
@@ -370,32 +371,32 @@ void WalletConfigScreen::save_to_nvs(uint8_t index) {
 void WalletConfigScreen::load_from_nvs() {
   Preferences prefs;
   prefs.begin("esp32btcminer", true);  // open namespace in read-only mode
-  
+
   // load all 4 wallet slots
   for (int i = 0; i < LIST_SLOTS; i++) {
     char name_key[16];
     char addr_key[16];
     char active_key[16];
     char config_key[16];
-    
+
     sprintf(name_key, "wallet%d_name", i);
     sprintf(addr_key, "wallet%d_addr", i);
     sprintf(active_key, "wallet%d_act", i);
     sprintf(config_key, "wallet%d_cfg", i);
-    
+
     // load data with empty string as default
     String name = prefs.getString(name_key, "");
     String addr = prefs.getString(addr_key, "");
     wallets[i].is_active = prefs.getBool(active_key, false);
     wallets[i].is_configured = prefs.getBool(config_key, false);
-    
+
     // copy strings to wallet arrays
     strncpy(wallets[i].name, name.c_str(), MAX_WALLET_NAME_LENGTH);
     wallets[i].name[MAX_WALLET_NAME_LENGTH] = '\0';
-    
+
     strncpy(wallets[i].address, addr.c_str(), MAX_WALLET_ADDRESS_LENGTH);
     wallets[i].address[MAX_WALLET_ADDRESS_LENGTH] = '\0';
   }
-  
+
   prefs.end();
 }

@@ -31,7 +31,7 @@ void draw_header(lgfx::LGFX_Device* lcd, const char* title) {
 }
 
 // touch debounce
-bool UIUtils::touch_debounce() {
+bool touch_debounce() {
   static unsigned long last_touch_time = 0;  // shared across all screens
 
   unsigned long current_time = millis();

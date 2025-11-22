@@ -10,7 +10,7 @@
 #include "config.h"
 #include "keyboard.h"
 // screen states for wifi configuration flow
-enum screen_state_t {
+enum class wifi_screen_state_t {
   STATE_SCANNING,               // scanning for networks
   STATE_SSID_MANUAL_ENTRY,      // manually typing network SSID
   STATE_PASSWORD_MANUAL_ENTRY,  // manually typing network password
@@ -40,12 +40,11 @@ class WifiConfigScreen {
   char saved_password[MAX_WIFI_PASSWORD_LENGTH + 1];       // stores password to autoconnect
 
   // ui state
-  screen_state_t current_state;     // current screen state
-  int8_t current_page;              // current page in network list
-  unsigned long state_change_time;  // when state last changed
-  Keyboard kb;                      // keyboard widget for password entry
-  bool display_needs_redraw;        // redraw flag
-
+  wifi_screen_state_t current_state;  // current screen state
+  int8_t current_page;                // current page in network list
+  unsigned long state_change_time;    // when state last changed
+  Keyboard kb;                        // keyboard widget for password entry
+  bool display_needs_redraw;          // redraw flag
 
   // drawing helpers - render specific ui elements
   void draw_signal_strength_bars(int32_t rssi, uint16_t x, uint16_t y, bool small, lgfx::LGFX_Device* lcd);
@@ -61,6 +60,8 @@ class WifiConfigScreen {
   void draw_network_list_item(const network_info_t& network, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_back_button(lgfx::LGFX_Device* lcd);
   void draw_bottom_buttons(lgfx::LGFX_Device* lcd);
+  
+
   bool is_point_in_rect(uint16_t touch_x,
                         uint16_t touch_y,
                         uint16_t rect_x,
@@ -82,6 +83,7 @@ class WifiConfigScreen {
   // main interface methods
   void draw(lgfx::LGFX_Device* lcd);                                    // renders current state
   void clear();                                                         // resets screen state
+  void mark_for_redraw();                                               // sets redraw flag
   void handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device* lcd);  // processes touch input
   void start_scan();                                                    // initiates network scan
   void connect(const char* ssid, const char* password);                 // connects to selected network

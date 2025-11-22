@@ -2,14 +2,13 @@
 
 #include "pool_config_screen.h"
 
-
 // constructor
 PoolConfigScreen::PoolConfigScreen() {
   // initialize state variables
-  display_needs_redraw = true;
+  mark_for_redraw();
   popup_needs_redraw = false;
   selected_item_index = -1;
-  current_state = STATE_LIST;
+  current_state = pool_screen_state_t::STATE_LIST;
 
   // initialize all 4 pool slots to empty state
   for (int i = 0; i < LIST_SLOTS; i++) {
@@ -18,46 +17,28 @@ PoolConfigScreen::PoolConfigScreen() {
     pools[i].is_active = false;
     pools[i].is_configured = false;
   }
-
-  // load saved pools from nvs if any exist
-  load_from_nvs();
-
-  // set defaults for slots 0 and 1 only if they are still empty after loading
-  if (!pools[0].is_configured) {
-    strcpy(pools[0].name, "Public Pool");
-    strcpy(pools[0].address, "solo.ckpool.org:3333");
-    pools[0].is_configured = true;
-    pools[0].is_active = true;  // first default is active
-  }
-
-  if (!pools[1].is_configured) {
-    strcpy(pools[1].name, "Backup Pool");
-    strcpy(pools[1].address, "public-pool.io:21496");
-    pools[1].is_configured = true;
-    pools[1].is_active = false;  // second default is not active
-  }
 }
 
 // main draw function called every loop to render current state
 void PoolConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
-    case STATE_LIST:
+    case pool_screen_state_t::STATE_LIST:
       // draw pool list view with header
       UIUtils::draw_header(lcd, "Pools");
       draw_list(lcd);
       break;
 
-    case STATE_ENTERING_NAME:
+    case pool_screen_state_t::STATE_ENTERING_NAME:
       // show keyboard for pool name input
       kb.draw(lcd);
       break;
 
-    case STATE_ENTERING_ADDRESS:
+    case pool_screen_state_t::STATE_ENTERING_ADDRESS:
       // show keyboard for pool address input
       kb.draw(lcd);
       break;
 
-    case STATE_POPUP_MENU:
+    case pool_screen_state_t::STATE_POPUP_MENU:
       // only redraw popup once to prevent flickering
       if (popup_needs_redraw) {
         UIUtils::draw_header(lcd, "Pools");
@@ -77,7 +58,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
   }
 
   switch (current_state) {
-    case STATE_LIST:
+    case pool_screen_state_t::STATE_LIST:
       // check if any pool item was touched
       for (int i = 0; i < LIST_SLOTS; i++) {
         uint16_t item_y = LIST_START_Y + (ITEM_HEIGHT * i);
@@ -85,7 +66,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
           // pool item touched open popup menu
           selected_item_index = i;
           popup_needs_redraw = true;
-          current_state = STATE_POPUP_MENU;
+          current_state = pool_screen_state_t::STATE_POPUP_MENU;
         }
       }
       // check if back button was touched
@@ -94,14 +75,14 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       }
       break;
 
-    case STATE_ENTERING_NAME:
+    case pool_screen_state_t::STATE_ENTERING_NAME:
       // pass touch to keyboard for name input
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user cancelled return to list
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = pool_screen_state_t::STATE_LIST;
         kb.clear();
       } else if (kb.is_complete()) {
         // name entered successfully save to temp and move to address entry
@@ -109,7 +90,7 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
         strncpy(temp_name, pool_name, MAX_POOL_NAME_LENGTH);
         temp_name[MAX_POOL_NAME_LENGTH] = '\0';
 
-        current_state = STATE_ENTERING_ADDRESS;
+        current_state = pool_screen_state_t::STATE_ENTERING_ADDRESS;
         kb.clear();
         kb.set_label("Enter pool address");
         kb.set_max_length(MAX_POOL_ADDRESS_LENGTH);
@@ -117,14 +98,14 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       }
       break;
 
-    case STATE_ENTERING_ADDRESS:
+    case pool_screen_state_t::STATE_ENTERING_ADDRESS:
       // pass touch to keyboard for address input
       kb.handle_touch(tx, ty, lcd);
 
       if (kb.is_cancelled()) {
         // user cancelled go back to name entry
-        display_needs_redraw = true;
-        current_state = STATE_ENTERING_NAME;
+        mark_for_redraw();
+        current_state = pool_screen_state_t::STATE_ENTERING_NAME;
         kb.clear();
       } else if (kb.is_complete()) {
         // address entered successfully save pool data
@@ -153,22 +134,23 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
         // save to nvs and return to list
         save_to_nvs(selected_item_index);
-        display_needs_redraw = true;
-        current_state = STATE_LIST;
+        mark_for_redraw();
+        current_state = pool_screen_state_t::STATE_LIST;
         kb.reset_complete();
       }
       break;
 
-    case STATE_POPUP_MENU:
+    case pool_screen_state_t::STATE_POPUP_MENU:
       if (pools[selected_item_index].is_configured) {
         // configured pool has 4 buttons: select edit delete back
         for (int i = 0; i < 4; i++) {
-          if (UIUtils::is_point_in_rect(tx,
-                               ty,
-                               POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                               POPUP_MENU_BUTTON_Y,
-                               POPUP_MENU_BUTTON_WIDTH,
-                               POPUP_MENU_BUTTON_HEIGHT)) {
+          if (UIUtils::is_point_in_rect(
+                  tx,
+                  ty,
+                  POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                  POPUP_MENU_BUTTON_Y,
+                  POPUP_MENU_BUTTON_WIDTH,
+                  POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 0:
                 // select button: deactivate all pools then activate this one
@@ -176,13 +158,13 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
                   pools[j].is_active = false;
                 }
                 pools[selected_item_index].is_active = true;
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = pool_screen_state_t::STATE_LIST;
+                mark_for_redraw();
                 break;
 
               case 1:
                 // edit button: start keyboard flow to edit pool
-                current_state = STATE_ENTERING_NAME;
+                current_state = pool_screen_state_t::STATE_ENTERING_NAME;
                 kb.clear();
                 kb.set_label("Enter pool name");
                 kb.set_max_length(MAX_POOL_NAME_LENGTH);
@@ -195,14 +177,15 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
                 pools[selected_item_index].address[0] = '\0';
                 pools[selected_item_index].is_active = false;
                 pools[selected_item_index].is_configured = false;
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = pool_screen_state_t::STATE_LIST;
+                save_to_nvs(selected_item_index);
+                mark_for_redraw();
                 break;
 
               case 3:
                 // back button: close popup return to list
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = pool_screen_state_t::STATE_LIST;
+                mark_for_redraw();
                 break;
 
               default:
@@ -214,16 +197,17 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       } else {
         // empty pool has 2 buttons: add and back centered in positions 1 and 2
         for (int i = 1; i < 3; i++) {
-          if (UIUtils::is_point_in_rect(tx,
-                               ty,
-                               POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
-                               POPUP_MENU_BUTTON_Y,
-                               POPUP_MENU_BUTTON_WIDTH,
-                               POPUP_MENU_BUTTON_HEIGHT)) {
+          if (UIUtils::is_point_in_rect(
+                  tx,
+                  ty,
+                  POPUP_MENU_BUTTON_X + (i * POPUP_MENU_BUTTON_WIDTH) + (i * POPUP_MENU_BUTTON_GAP),
+                  POPUP_MENU_BUTTON_Y,
+                  POPUP_MENU_BUTTON_WIDTH,
+                  POPUP_MENU_BUTTON_HEIGHT)) {
             switch (i) {
               case 1:
                 // add button: start keyboard flow to create new pool
-                current_state = STATE_ENTERING_NAME;
+                current_state = pool_screen_state_t::STATE_ENTERING_NAME;
                 kb.clear();
                 kb.set_label("Enter pool name");
                 kb.set_max_length(MAX_POOL_NAME_LENGTH);
@@ -232,8 +216,8 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 
               case 2:
                 // back button: close popup return to list
-                current_state = STATE_LIST;
-                display_needs_redraw = true;
+                current_state = pool_screen_state_t::STATE_LIST;
+                mark_for_redraw();
                 break;
 
               default:
@@ -245,8 +229,6 @@ void PoolConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
       break;
   }
 }
-
-
 
 // draw list of all 4 pool slots
 void PoolConfigScreen::draw_list(lgfx::LGFX_Device* lcd) {
@@ -357,6 +339,9 @@ void PoolConfigScreen::draw_popup_menu(lgfx::LGFX_Device* lcd) {
   }
 }
 
+void PoolConfigScreen::mark_for_redraw() {
+  display_needs_redraw = true;
+}
 
 // save pool data to nvs storage
 void PoolConfigScreen::save_to_nvs(uint8_t index) {
@@ -415,4 +400,19 @@ void PoolConfigScreen::load_from_nvs() {
   }
 
   prefs.end();
+
+  // set defaults for slots 0 and 1 only if they are still empty after loading
+  if (!pools[0].is_configured) {
+    strcpy(pools[0].name, "Solo ckpool");
+    strcpy(pools[0].address, "solo.ckpool.org:3333");
+    pools[0].is_configured = true;
+    pools[0].is_active = true;  // first default is active
+  }
+
+  if (!pools[1].is_configured) {
+    strcpy(pools[1].name, "Public Pool");
+    strcpy(pools[1].address, "public-pool.io:21496");
+    pools[1].is_configured = true;
+    pools[1].is_active = false;  // second default is not active
+  }
 }
