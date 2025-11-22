@@ -71,7 +71,7 @@ void MainMenu::draw_menu_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_
   lcd->drawRect(x, y, SCREEN_WIDTH - (2 * LIST_START_X), ITEM_HEIGHT, COLOR_WHITE);
 
   // menu options
-  const char* menu_options[] = {"Start/Stop Mining", "Wallets", "Pools", "WiFi"};
+  const char* menu_options[] = {"Wallets", "Pools", "WiFi", "Themes"};
 
   lcd->setCursor(x + 3, y + 15);  // x & y internal button margin
   lcd->print(menu_options[index]);

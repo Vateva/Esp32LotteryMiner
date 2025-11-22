@@ -1,8 +1,9 @@
 // wifi_config_screen.cpp
 #include "wifi_config_screen.h"
-#include "ui_utils.h"
 
 #include <Preferences.h>
+
+#include "ui_utils.h"
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 209;
@@ -43,7 +44,7 @@ const uint16_t BARR_4_X_OFFSET = 9;
 
 // constructor - initialize screen state
 WifiConfigScreen::WifiConfigScreen() {
-  current_state = wifi_screen_state_t::STATE_SCANNING;
+  current_state = wifi_screen_state_t::STATE_LIST;
   current_page = 0;
   selected_network = -1;
   scanned_networks_amount = 0;
@@ -60,6 +61,9 @@ WifiConfigScreen::WifiConfigScreen() {
 void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
   switch (current_state) {
     case wifi_screen_state_t::STATE_SCANNING: {
+      if (display_needs_redraw) {
+        WiFi.scanNetworks(true, false);  // Start the non-blocking scan
+      }
       int scan_status = WiFi.scanComplete();
 
       if (scan_status == -2) {
@@ -67,6 +71,7 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
         Serial.println("wifi scan failed.");
         WiFi.scanDelete();
         mark_for_redraw();
+        strcpy(error_message, "Scan failed!");
         current_state = wifi_screen_state_t::STATE_ERROR;
         state_change_time = millis();
       } else if (scan_status == -1) {
@@ -127,11 +132,13 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
         WiFi.disconnect(true);  // Clean up the failed connection
         mark_for_redraw();
+        strcpy(error_message, "Error connecting!");
         current_state = wifi_screen_state_t::STATE_ERROR;
         state_change_time = millis();
-      } else if (millis() - connection_start_time > WIFI_CONNECT_TIMEOUT_MS) {
-        WiFi.disconnect(true);  // Clean up the failed connection
+      } else if (millis() - connection_start_time > WIFI_CONNECT_TIMEOUT_MS) {  // ADD THIS
+        WiFi.disconnect(true);
         mark_for_redraw();
+        strcpy(error_message, "Connection timeout!");
         current_state = wifi_screen_state_t::STATE_ERROR;
         state_change_time = millis();
       } else {
@@ -152,14 +159,8 @@ void WifiConfigScreen::draw(lgfx::LGFX_Device* lcd) {
       break;
 
     case wifi_screen_state_t::STATE_ERROR:
-      // check if we came from scanning (no selected network) or from connecting
-      if (selected_network == -1) {
-        // error from scanning
-        draw_message(COLOR_RED, "Scan failed!", false, true, 120, 180, lcd);
-      } else {
-        // error from connection attempt
-        draw_message(COLOR_RED, "Error connecting!", false, true, 120, 180, lcd);
-      }
+
+      draw_message(COLOR_RED, error_message, false, true, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 10, lcd);
 
       if (millis() - state_change_time > 5000) {
         mark_for_redraw();
@@ -178,7 +179,7 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
   switch (current_state) {
     case wifi_screen_state_t::STATE_SCANNING: {
       if (UIUtils::is_point_in_rect(tx, ty, BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT)) {
-        WiFi.scanDelete();            // cancel ongoing scan
+        WiFi.scanDelete();  // cancel ongoing scan
         mark_for_redraw();  // force redraw when returning to list
         current_state = wifi_screen_state_t::STATE_LIST;
       }
@@ -312,7 +313,6 @@ void WifiConfigScreen::handle_touch(uint16_t tx, uint16_t ty, lgfx::LGFX_Device*
 void WifiConfigScreen::start_scan() {
   mark_for_redraw();
   current_state = wifi_screen_state_t::STATE_SCANNING;
-  WiFi.scanNetworks(true, false);
 }
 
 // placeholder method
@@ -600,7 +600,6 @@ void WifiConfigScreen::draw_bottom_buttons(lgfx::LGFX_Device* lcd) {
   lcd->setCursor(MANUAL_BUTTON_TEXT_X, BOTTOM_BUTTONS_TEXT_Y);
   lcd->print("Enter SSID");
 }
-
 
 // drawing strength bars
 void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi,

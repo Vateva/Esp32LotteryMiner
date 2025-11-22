@@ -33,6 +33,7 @@ class WifiConfigScreen {
   int8_t scanned_networks_amount;       // actual count found
   int8_t selected_network;              // index of selected network (-1 if none)
   unsigned long connection_start_time;  // when connection attempt started
+  char error_message[32];               // store appropiate error message
 
   char manual_ssid[MAX_SSID_LENGTH + 1];                   // stores manually entered ssid(buffer)
   char typed_ssid_password[MAX_WIFI_PASSWORD_LENGTH + 1];  // password entered by user both manual and selected(buffer)

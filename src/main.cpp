@@ -96,7 +96,7 @@ enum app_screen_t {
   SCREEN_WIFI_CONFIG,    // wifi configuration
   SCREEN_WALLET_CONFIG,  // wallet configuration
   SCREEN_POOL_CONFIG,    // pool configuration
-  SCREEN_MINING          // placeholder for mining screen
+  SCREEN_THEMES          // placeholder for mining screen
 };
 
 // global instances
@@ -179,6 +179,9 @@ void setup() {
 
   // set wifi mode to station
   WiFi.mode(WIFI_STA);
+  WiFi.disconnect();     // clear any previous connection state
+  WiFi.setSleep(false);  // disable wifi sleep - critical for esp32-s3 scanning
+  delay(500);            // give radio time to fully stabilize
 
   Serial.println("[ok] wifi initialized");
 
@@ -227,14 +230,6 @@ void loop() {
 
           switch (selected) {
             case 0:
-              // start/stop mining - placeholder
-              current_screen = SCREEN_MINING;
-              // mining.mark_for_redraw();
-              screen_needs_redraw = true;
-              Serial.println("[nav] main menu -> mining");
-              break;
-
-            case 1:
               // wallets
               current_screen = SCREEN_WALLET_CONFIG;
               wallet_screen.mark_for_redraw();
@@ -242,7 +237,7 @@ void loop() {
               Serial.println("[nav] main menu -> wallets");
               break;
 
-            case 2:
+            case 1:
               // pools
               current_screen = SCREEN_POOL_CONFIG;
               pool_screen.mark_for_redraw();
@@ -250,13 +245,20 @@ void loop() {
               Serial.println("[nav] main menu -> pools");
               break;
 
-            case 3:
+            case 2:
               // wifi
               current_screen = SCREEN_WIFI_CONFIG;
               wifi_screen.start_scan();
-              wifi_screen.mark_for_redraw();
               screen_needs_redraw = true;
               Serial.println("[nav] main menu -> wifi");
+              break;
+
+            case 3:
+              // themes - placeholder
+              current_screen = SCREEN_THEMES;
+              // themes.mark_for_redraw();
+              screen_needs_redraw = true;
+              Serial.println("[nav] main menu -> ");
               break;
 
             default:
@@ -316,7 +318,7 @@ void loop() {
       }
       break;
 
-    case SCREEN_MINING:
+    case SCREEN_THEMES:
       // placeholder mining screen
       if (screen_needs_redraw) {
         lcd.fillScreen(COLOR_BLACK);
@@ -326,7 +328,7 @@ void loop() {
         lcd.setTextColor(COLOR_WHITE);
         lcd.setTextSize(2);
         lcd.setCursor(60, 100);
-        lcd.print("Mining Screen");
+        lcd.print("Themes Screen");
         lcd.setCursor(70, 120);
         lcd.print("Placeholder");
 
