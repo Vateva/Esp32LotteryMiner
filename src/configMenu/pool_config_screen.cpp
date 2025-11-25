@@ -1,6 +1,6 @@
 // pool_config_screen.cpp
 
-#include "pool_config_screen.h"
+#include "configMenu/pool_config_screen.h"
 
 // constructor
 PoolConfigScreen::PoolConfigScreen() {

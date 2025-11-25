@@ -1,5 +1,5 @@
 // keyboard.cpp
-#include "keyboard.h"
+#include "configMenu/keyboard.h"
 
 Keyboard::Keyboard() {
     buffer_length = 0;

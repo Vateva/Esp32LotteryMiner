@@ -1,6 +1,6 @@
 // main_menu.cpp
 
-#include "main_menu.h"
+#include "configMenu/main_menu.h"
 
 // constructor
 MainMenu::MainMenu() {

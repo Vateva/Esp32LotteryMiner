@@ -1,9 +1,9 @@
 // wifi_config_screen.cpp
-#include "wifi_config_screen.h"
+#include "configMenu/wifi_config_screen.h"
+#include "configMenu/ui_utils.h"
 
 #include <Preferences.h>
 
-#include "ui_utils.h"
 
 // buttons at bottom
 const uint16_t BOTTOM_BUTTONS_Y = 209;

@@ -1,6 +1,6 @@
 // wallet_config_screen.cpp
 
-#include "wallet_config_screen.h"
+#include "configMenu/wallet_config_screen.h"
 
 // constructor
 WalletConfigScreen::WalletConfigScreen() {

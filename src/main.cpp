@@ -1,370 +1,329 @@
-// main.cpp: complete ui test with navigation
-#define LGFX_USE_V1
-#include <WiFi.h>
+// main.cpp
+// test program for sha256_miner module
 
-#include <LovyanGFX.hpp>
+#include <Arduino.h>
+#include "mining/sha256_miner.h"
 
-#include "config.h"
-#include "main_menu.h"
-#include "pool_config_screen.h"
-#include "wallet_config_screen.h"
-#include "wifi_config_screen.h"
-
-// lgfx class for ili9341 + ft6336 touch
-class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ILI9341 _panel_instance;
-  lgfx::Bus_SPI _bus_instance;
-  lgfx::Touch_FT5x06 _touch_instance;
-
- public:
-  LGFX(void) {
-    // spi bus config
-    {
-      auto cfg = _bus_instance.config();
-      cfg.spi_host = SPI2_HOST;
-      cfg.spi_mode = 0;
-      cfg.freq_write = SPI_FREQUENCY_WRITE;
-      cfg.freq_read = SPI_FREQUENCY_READ;
-      cfg.spi_3wire = false;
-      cfg.use_lock = true;
-      cfg.dma_channel = SPI_DMA_CH_AUTO;
-
-      cfg.pin_sclk = PIN_LCD_SCLK;
-      cfg.pin_mosi = PIN_LCD_MOSI;
-      cfg.pin_miso = PIN_LCD_MISO;
-      cfg.pin_dc = PIN_LCD_DC;
-
-      _bus_instance.config(cfg);
-      _panel_instance.setBus(&_bus_instance);
+// helper function to print 32 bytes as hex string
+void print_hash(const uint8_t* hash) {
+  for (int i = 0; i < 32; i++) {
+    if (hash[i] < 0x10) {
+      Serial.print("0");  // leading zero for single digit hex
     }
-
-    // panel config
-    {
-      auto cfg = _panel_instance.config();
-      cfg.pin_cs = PIN_LCD_CS;
-      cfg.pin_rst = PIN_LCD_RST;
-      cfg.pin_busy = -1;
-
-      cfg.panel_width = SCREEN_HEIGHT;  // 240
-      cfg.panel_height = SCREEN_WIDTH;  // 320
-      cfg.offset_x = 0;
-      cfg.offset_y = 0;
-      cfg.offset_rotation = 0;
-      cfg.dummy_read_pixel = 8;
-      cfg.dummy_read_bits = 1;
-      cfg.readable = true;
-      cfg.invert = false;
-      cfg.rgb_order = false;
-      cfg.dlen_16bit = false;
-      cfg.bus_shared = true;
-
-      cfg.invert = true;  // enable color inversion
-
-      _panel_instance.config(cfg);
-    }
-
-    // touch panel config (ft6336)
-    {
-      auto cfg = _touch_instance.config();
-      cfg.x_min = TOUCH_X_MIN;
-      cfg.x_max = TOUCH_X_MAX;
-      cfg.y_min = TOUCH_Y_MIN;
-      cfg.y_max = TOUCH_Y_MAX;
-      cfg.pin_int = PIN_TOUCH_INT;
-      cfg.pin_rst = -1;
-      cfg.bus_shared = false;
-      cfg.offset_rotation = 2;
-
-      cfg.i2c_port = 0;
-      cfg.i2c_addr = TOUCH_I2C_ADDR;
-      cfg.freq = TOUCH_I2C_FREQUENCY;
-      cfg.pin_sda = PIN_TOUCH_SDA;
-      cfg.pin_scl = PIN_TOUCH_SCL;
-
-      _touch_instance.config(cfg);
-      _panel_instance.setTouch(&_touch_instance);
-    }
-
-    setPanel(&_panel_instance);
+    Serial.print(hash[i], HEX);
   }
-};
-
-// screen navigation states - tracks which screen is currently active
-enum app_screen_t {
-  SCREEN_HOME,           // home screen with main menu button
-  SCREEN_MAIN_MENU,      // main menu with 4 options
-  SCREEN_WIFI_CONFIG,    // wifi configuration
-  SCREEN_WALLET_CONFIG,  // wallet configuration
-  SCREEN_POOL_CONFIG,    // pool configuration
-  SCREEN_THEMES          // placeholder for mining screen
-};
-
-// global instances
-LGFX lcd;
-MainMenu main_menu;
-WifiConfigScreen wifi_screen;
-WalletConfigScreen wallet_screen;
-PoolConfigScreen pool_screen;
-
-// navigation state
-app_screen_t current_screen = SCREEN_HOME;
-app_screen_t previous_screen = SCREEN_HOME;
-bool screen_needs_redraw = true;  // flag to trigger full screen clear when changing screens
-
-// home screen button coordinates
-#define HOME_BUTTON_X 85
-#define HOME_BUTTON_Y 100
-#define HOME_BUTTON_WIDTH 150
-#define HOME_BUTTON_HEIGHT 40
-
-// draw home screen with centered text and main menu button
-void draw_home_screen() {
-  // only redraw when needed to prevent flickering
-  if (screen_needs_redraw) {
-    lcd.fillScreen(COLOR_BLACK);
-    screen_needs_redraw = false;
-
-    // draw placeholder text centered at top
-    lcd.setTextColor(COLOR_WHITE);
-    lcd.setTextSize(2);
-    lcd.setCursor(40, 40);
-    lcd.print("Placeholder Home");
-    lcd.setCursor(85, 60);
-    lcd.print("Page");
-
-    // draw main menu button
-    lcd.drawRect(HOME_BUTTON_X, HOME_BUTTON_Y, HOME_BUTTON_WIDTH, HOME_BUTTON_HEIGHT, COLOR_WHITE);
-    lcd.setCursor(HOME_BUTTON_X + 20, HOME_BUTTON_Y + 12);
-    lcd.print("Main Menu");
-  }
-}
-
-// handle touch input on home screen
-void handle_home_touch(uint16_t tx, uint16_t ty) {
-  // check if main menu button was touched
-  if (tx >= HOME_BUTTON_X && tx < HOME_BUTTON_X + HOME_BUTTON_WIDTH && ty >= HOME_BUTTON_Y &&
-      ty < HOME_BUTTON_Y + HOME_BUTTON_HEIGHT) {
-    // navigate to main menu
-    previous_screen = current_screen;
-    current_screen = SCREEN_MAIN_MENU;
-    main_menu.mark_for_redraw();
-    screen_needs_redraw = true;
-
-    Serial.println("[nav] home -> main menu");
-  }
-}
-
-// setup
-void setup() {
-  // init serial
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n================================");
-  Serial.println("   complete ui test");
-  Serial.println("================================");
-
-  // init display
-  lcd.init();
-  lcd.setRotation(1);  // landscape
-  lcd.fillScreen(COLOR_BLACK);
-
-  Serial.println("[ok] display initialized");
-
-  // check touch controller
-  if (lcd.touch()) {
-    Serial.println("[ok] touch controller ready");
-  } else {
-    Serial.println("[error] touch controller not detected!");
-  }
-
-  // set wifi mode to station
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();     // clear any previous connection state
-  WiFi.setSleep(false);  // disable wifi sleep - critical for esp32-s3 scanning
-  delay(500);            // give radio time to fully stabilize
-
-  Serial.println("[ok] wifi initialized");
-
-  // load saved nvs parameters
-  wifi_screen.load_from_nvs();
-  wallet_screen.load_from_nvs();
-  pool_screen.load_from_nvs();
-
-  Serial.println("[ok] all screens initialized");
-  Serial.println("[info] starting on home screen");
   Serial.println();
 }
 
-// main loop
-void loop() {
-  uint16_t x = 0, y = 0;
-
-  // check for touch input
-  bool touched = lcd.getTouch(&x, &y);
-
-  // handle current screen based on navigation state
-  switch (current_screen) {
-    case SCREEN_HOME:
-      // draw home screen
-      draw_home_screen();
-
-      // handle touch if detected
-      if (touched) {
-        handle_home_touch(x, y);
-      }
-      break;
-
-    case SCREEN_MAIN_MENU:
-      // draw main menu
-      main_menu.draw(&lcd);
-
-      // handle touch if detected
-      if (touched) {
-        main_menu.handle_touch(x, y, &lcd);
-
-        // check if user selected a menu item
-        int8_t selected = main_menu.get_selected_item();
-        if (selected >= 0) {
-          // navigate based on selection
-          previous_screen = current_screen;
-
-          switch (selected) {
-            case 0:
-              // wallets
-              current_screen = SCREEN_WALLET_CONFIG;
-              wallet_screen.mark_for_redraw();
-              screen_needs_redraw = true;
-              Serial.println("[nav] main menu -> wallets");
-              break;
-
-            case 1:
-              // pools
-              current_screen = SCREEN_POOL_CONFIG;
-              pool_screen.mark_for_redraw();
-              screen_needs_redraw = true;
-              Serial.println("[nav] main menu -> pools");
-              break;
-
-            case 2:
-              // wifi
-              current_screen = SCREEN_WIFI_CONFIG;
-              wifi_screen.start_scan();
-              screen_needs_redraw = true;
-              Serial.println("[nav] main menu -> wifi");
-              break;
-
-            case 3:
-              // themes - placeholder
-              current_screen = SCREEN_THEMES;
-              // themes.mark_for_redraw();
-              screen_needs_redraw = true;
-              Serial.println("[nav] main menu -> ");
-              break;
-
-            default:
-              break;
-          }
-
-          // clear selection after navigation
-          main_menu.reset_selection();
-        }
-      }
-      break;
-
-    case SCREEN_WIFI_CONFIG:
-      // draw wifi config screen
-      wifi_screen.draw(&lcd);
-
-      // handle touch if detected
-      if (touched) {
-        wifi_screen.handle_touch(x, y, &lcd);
-      }
-
-      // check if connected
-      if (WiFi.status() == WL_CONNECTED) {
-        // print connection info once
-        static bool info_printed = false;
-        if (!info_printed) {
-          Serial.println("\n[success] wifi connected!");
-          Serial.print("  ssid: ");
-          Serial.println(WiFi.SSID());
-          Serial.print("  ip address: ");
-          Serial.println(WiFi.localIP());
-          Serial.print("  rssi: ");
-          Serial.print(WiFi.RSSI());
-          Serial.println(" dBm");
-          info_printed = true;
-        }
-      }
-      break;
-
-    case SCREEN_WALLET_CONFIG:
-      // draw wallet config screen
-      wallet_screen.draw(&lcd);
-
-      // handle touch if detected
-      if (touched) {
-        wallet_screen.handle_touch(x, y, &lcd);
-      }
-      break;
-
-    case SCREEN_POOL_CONFIG:
-      // draw pool config screen
-      pool_screen.draw(&lcd);
-
-      // handle touch if detected
-      if (touched) {
-        pool_screen.handle_touch(x, y, &lcd);
-      }
-      break;
-
-    case SCREEN_THEMES:
-      // placeholder mining screen
-      if (screen_needs_redraw) {
-        lcd.fillScreen(COLOR_BLACK);
-        screen_needs_redraw = false;
-
-        // draw placeholder text
-        lcd.setTextColor(COLOR_WHITE);
-        lcd.setTextSize(2);
-        lcd.setCursor(60, 100);
-        lcd.print("Themes Screen");
-        lcd.setCursor(70, 120);
-        lcd.print("Placeholder");
-
-        // draw back button
-        lcd.drawRect(BACK_BUTTON_X, BACK_BUTTON_Y, BACK_BUTTON_W, BACK_BUTTON_HEIGHT, COLOR_WHITE);
-        lcd.setCursor(BACK_BUTTON_TEXT_X, BACK_BUTTON_TEXT_Y);
-        lcd.print("<-");
-      }
-
-      // handle touch for back button
-      if (touched) {
-        if (x >= BACK_BUTTON_X && x < BACK_BUTTON_X + BACK_BUTTON_W && y >= BACK_BUTTON_Y &&
-            y < BACK_BUTTON_Y + BACK_BUTTON_HEIGHT) {
-          // return to main menu
-          current_screen = SCREEN_MAIN_MENU;
-          screen_needs_redraw = true;
-          Serial.println("[nav] mining -> main menu");
-        }
-      }
-      break;
-  }
-
-  // universal back button handling for config screens
-  // this checks if back button was touched while in any config screen and returns to main menu
-  if (current_screen == SCREEN_WIFI_CONFIG || current_screen == SCREEN_WALLET_CONFIG ||
-      current_screen == SCREEN_POOL_CONFIG) {
-    if (touched) {
-      // check if back button area was touched
-      if (x >= BACK_BUTTON_X && x < BACK_BUTTON_X + BACK_BUTTON_W && y >= BACK_BUTTON_Y &&
-          y < BACK_BUTTON_Y + BACK_BUTTON_HEIGHT) {
-        // return to main menu
-        current_screen = SCREEN_MAIN_MENU;
-        main_menu.mark_for_redraw();
-        screen_needs_redraw = true;
-        Serial.println("[nav] config screen -> main menu");
-      }
+// helper function to compare two 32-byte arrays
+// returns true if they match exactly
+bool arrays_match(const uint8_t* a, const uint8_t* b, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (a[i] != b[i]) {
+      return false;
     }
   }
+  return true;
+}
+
+// test 1: verify sha256d produces correct output
+// uses known test vector: sha256d("abc")
+bool test_sha256d() {
+  Serial.println("\n[test] sha256d with input 'abc'");
+  
+  // input: "abc" as bytes
+  uint8_t input[] = {0x61, 0x62, 0x63};
+  
+  // expected output: sha256(sha256("abc"))
+  // sha256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+  // sha256(that) = 4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358
+  uint8_t expected[] = {
+    0x4f, 0x8b, 0x42, 0xc2, 0x2d, 0xd3, 0x72, 0x9b,
+    0x51, 0x9b, 0xa6, 0xf6, 0x8d, 0x2d, 0xa7, 0xcc,
+    0x5b, 0x2d, 0x60, 0x6d, 0x05, 0xda, 0xed, 0x5a,
+    0xd5, 0x12, 0x8c, 0xc0, 0x3e, 0x6c, 0x63, 0x58
+  };
+  
+  // compute sha256d
+  uint8_t output[32];
+  sha256d(input, 3, output);
+  
+  // print results
+  Serial.print("  expected: ");
+  print_hash(expected);
+  Serial.print("  got:      ");
+  print_hash(output);
+  
+  // verify match
+  if (arrays_match(output, expected, 32)) {
+    Serial.println("  [pass] sha256d output matches expected");
+    return true;
+  } else {
+    Serial.println("  [fail] sha256d output does not match!");
+    return false;
+  }
+}
+
+// test 2: verify hash_below_target comparison logic
+bool test_hash_below_target() {
+  Serial.println("\n[test] hash_below_target comparison");
+  
+  bool all_passed = true;
+  
+  // test case 2a: hash all zeros, target all ones -> hash < target (true)
+  {
+    uint8_t hash[32] = {0};    // all zeros
+    uint8_t target[32];
+    memset(target, 0xFF, 32);  // all ones
+    
+    bool result = hash_below_target(hash, target);
+    Serial.print("  case 2a (zeros < ones): ");
+    if (result == true) {
+      Serial.println("[pass]");
+    } else {
+      Serial.println("[fail] expected true");
+      all_passed = false;
+    }
+  }
+  
+  // test case 2b: hash all ones, target all zeros -> hash > target (false)
+  {
+    uint8_t hash[32];
+    memset(hash, 0xFF, 32);    // all ones
+    uint8_t target[32] = {0};  // all zeros
+    
+    bool result = hash_below_target(hash, target);
+    Serial.print("  case 2b (ones > zeros): ");
+    if (result == false) {
+      Serial.println("[pass]");
+    } else {
+      Serial.println("[fail] expected false");
+      all_passed = false;
+    }
+  }
+  
+  // test case 2c: hash equals target -> should return true (hash <= target)
+  {
+    uint8_t hash[32];
+    uint8_t target[32];
+    memset(hash, 0x55, 32);
+    memset(target, 0x55, 32);
+    
+    bool result = hash_below_target(hash, target);
+    Serial.print("  case 2c (equal values): ");
+    if (result == true) {
+      Serial.println("[pass]");
+    } else {
+      Serial.println("[fail] expected true");
+      all_passed = false;
+    }
+  }
+  
+  // test case 2d: tricky endianness case
+  // hash[31] = 0x01 (msb), target[31] = 0x02 (msb)
+  // hash[0] = 0xFF (lsb), target[0] = 0x00 (lsb)
+  // hash < target because msb determines result
+  {
+    uint8_t hash[32] = {0};
+    uint8_t target[32] = {0};
+    
+    hash[31] = 0x01;    // most significant byte
+    hash[0] = 0xFF;     // least significant byte (should be ignored)
+    
+    target[31] = 0x02;  // most significant byte
+    target[0] = 0x00;   // least significant byte
+    
+    bool result = hash_below_target(hash, target);
+    Serial.print("  case 2d (msb determines): ");
+    if (result == true) {
+      Serial.println("[pass]");
+    } else {
+      Serial.println("[fail] expected true (hash[31]=0x01 < target[31]=0x02)");
+      all_passed = false;
+    }
+  }
+  
+  // test case 2e: opposite of 2d - hash msb > target msb
+  {
+    uint8_t hash[32] = {0};
+    uint8_t target[32] = {0};
+    
+    hash[31] = 0x02;    // most significant byte
+    hash[0] = 0x00;     // least significant byte
+    
+    target[31] = 0x01;  // most significant byte
+    target[0] = 0xFF;   // least significant byte (should be ignored)
+    
+    bool result = hash_below_target(hash, target);
+    Serial.print("  case 2e (msb determines, hash > target): ");
+    if (result == false) {
+      Serial.println("[pass]");
+    } else {
+      Serial.println("[fail] expected false (hash[31]=0x02 > target[31]=0x01)");
+      all_passed = false;
+    }
+  }
+  
+  if (all_passed) {
+    Serial.println("  [pass] all hash_below_target cases passed");
+  }
+  
+  return all_passed;
+}
+
+// test 3: verify mine_nonce_range can find valid nonce
+bool test_mine_nonce_range() {
+  Serial.println("\n[test] mine_nonce_range with easy target");
+  
+  // create fake block header (80 bytes)
+  // fill with some arbitrary data - doesn't matter for this test
+  uint8_t header[80];
+  for (int i = 0; i < 80; i++) {
+    header[i] = i;  // simple pattern
+  }
+  
+  // create an easy target - almost all 0xFF means almost any hash will pass
+  // we set byte 31 (most significant) to a medium value so some hashes fail
+  // this tests that we actually find valid ones, not that everything passes
+  uint8_t target[32];
+  memset(target, 0xFF, 32);
+  target[31] = 0x7F;  // msb = 0x7F, so about half of hashes should be valid
+  
+  // mine parameters
+  uint32_t start_nonce = 0;
+  uint32_t nonce_count = 10000;  // try up to 10000 nonces
+  uint32_t found_nonce = 0;
+  uint32_t hashes_done = 0;
+  
+  // measure time
+  unsigned long start_time = millis();
+  
+  // run mining
+  bool found = mine_nonce_range(header, start_nonce, nonce_count, target, &found_nonce, &hashes_done);
+  
+  unsigned long elapsed = millis() - start_time;
+  
+  // report results
+  Serial.print("  nonces tried: ");
+  Serial.println(hashes_done);
+  Serial.print("  time elapsed: ");
+  Serial.print(elapsed);
+  Serial.println(" ms");
+  
+  if (elapsed > 0) {
+    float hashrate = (float)hashes_done / ((float)elapsed / 1000.0);
+    Serial.print("  hash rate: ");
+    Serial.print(hashrate, 1);
+    Serial.println(" h/s");
+  }
+  
+  if (found) {
+    Serial.print("  found valid nonce: ");
+    Serial.println(found_nonce);
+    
+    // verify the found nonce actually produces valid hash
+    // nonce should already be written into header[76-79]
+    uint8_t verify_hash[32];
+    sha256d(header, 80, verify_hash);
+    
+    Serial.print("  resulting hash: ");
+    print_hash(verify_hash);
+    
+    if (hash_below_target(verify_hash, target)) {
+      Serial.println("  [pass] found nonce produces valid hash");
+      return true;
+    } else {
+      Serial.println("  [fail] found nonce does not produce valid hash!");
+      return false;
+    }
+  } else {
+    // with target[31] = 0x7F, we should find something in 10000 tries
+    // if not, something is wrong
+    Serial.println("  [fail] no valid nonce found in range (unexpected)");
+    return false;
+  }
+}
+
+// test 4: hashrate benchmark with harder target
+void test_hashrate_benchmark() {
+  Serial.println("\n[test] hashrate benchmark (100000 hashes)");
+  
+  // create fake header
+  uint8_t header[80];
+  for (int i = 0; i < 80; i++) {
+    header[i] = i * 3;
+  }
+  
+  // impossible target - all zeros means no hash will ever match
+  // this forces full iteration through nonce_count
+  uint8_t target[32] = {0};
+  
+  uint32_t found_nonce = 0;
+  uint32_t hashes_done = 0;
+  uint32_t nonce_count = 100000;
+  
+  // measure time for full batch
+  unsigned long start_time = millis();
+  
+  mine_nonce_range(header, 0, nonce_count, target, &found_nonce, &hashes_done);
+  
+  unsigned long elapsed = millis() - start_time;
+  
+  Serial.print("  hashes: ");
+  Serial.println(hashes_done);
+  Serial.print("  time: ");
+  Serial.print(elapsed);
+  Serial.println(" ms");
+  
+  if (elapsed > 0) {
+    float hashrate = (float)hashes_done / ((float)elapsed / 1000.0);
+    Serial.print("  hash rate: ");
+    Serial.print(hashrate / 1000.0, 2);
+    Serial.println(" kh/s");
+  }
+}
+
+void setup() {
+  // initialize serial
+  Serial.begin(115200);
+  delay(2000);  // wait for serial monitor
+  
+  Serial.println("\n========================================");
+  Serial.println("   sha256_miner test suite");
+  Serial.println("========================================");
+  
+  // initialize miner
+  miner_init();
+  
+  // run tests
+  bool test1 = test_sha256d();
+  bool test2 = test_hash_below_target();
+  bool test3 = test_mine_nonce_range();
+  
+  // run benchmark
+  test_hashrate_benchmark();
+  
+  // summary
+  Serial.println("\n========================================");
+  Serial.println("   test summary");
+  Serial.println("========================================");
+  Serial.print("  sha256d:           ");
+  Serial.println(test1 ? "[pass]" : "[fail]");
+  Serial.print("  hash_below_target: ");
+  Serial.println(test2 ? "[pass]" : "[fail]");
+  Serial.print("  mine_nonce_range:  ");
+  Serial.println(test3 ? "[pass]" : "[fail]");
+  
+  if (test1 && test2 && test3) {
+    Serial.println("\n  all tests passed!");
+  } else {
+    Serial.println("\n  some tests failed - check output above");
+  }
+  
+  Serial.println("\n========================================");
+}
+
+void loop() {
+  // nothing to do - tests run once in setup
+  delay(10000);
 }
