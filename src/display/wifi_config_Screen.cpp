@@ -647,7 +647,7 @@ void WifiConfigScreen::draw_signal_strength_bars(int32_t rssi,
     lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_DARKGREEN);
     lcd->setColor(COLOR_WHITE);
     lcd->drawRect(x + 5 + offset_4, y_ref - bar_4_h, bar_w, bar_4_h);
-  } else if (rssi >= -45) {
+  } else if (rssi >= -55) {
     lcd->fillRect(x + 5, y_ref - bar_1_h, bar_w, bar_1_h, COLOR_GREEN);
     lcd->fillRect(x + 5 + offset_2, y_ref - bar_2_h, bar_w, bar_2_h, COLOR_GREEN);
     lcd->fillRect(x + 5 + offset_3, y_ref - bar_3_h, bar_w, bar_3_h, COLOR_GREEN);
