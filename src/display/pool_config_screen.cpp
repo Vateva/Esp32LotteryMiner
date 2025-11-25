@@ -266,18 +266,23 @@ void PoolConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgf
     lcd->setTextSize(1);
     lcd->setCursor(x + 3, y + 25);
 
-    // create truncated version: first 10 chars + ... + last 10 chars
-    char truncated[24];
-    strncpy(truncated, pools[index].address, 10);
-    truncated[10] = '.';
-    truncated[11] = '.';
-    truncated[12] = '.';
-
     int addr_len = strlen(pools[index].address);
-    strncpy(truncated + 13, pools[index].address + addr_len - 10, 10);
-    truncated[23] = '\0';
 
-    lcd->print(truncated);
+    // only use <first 10>...<last 10> format if address is long enough
+    if (addr_len > 23) {
+      // create truncated version: first 10 chars + ... + last 10 chars
+      char truncated[24];
+      strncpy(truncated, pools[index].address, 10);
+      truncated[10] = '.';
+      truncated[11] = '.';
+      truncated[12] = '.';
+      strncpy(truncated + 13, pools[index].address + addr_len - 10, 10);
+      truncated[23] = '\0';
+      lcd->print(truncated);
+    } else {
+      // address is short enough to display as-is
+      lcd->print(pools[index].address);
+    }
   }
 
   // show active indicator if this pool is selected

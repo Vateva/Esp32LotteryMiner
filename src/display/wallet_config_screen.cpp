@@ -265,18 +265,24 @@ void WalletConfigScreen::draw_list_item(uint8_t index, uint16_t x, uint16_t y, l
     lcd->setTextSize(1);
     lcd->setCursor(x + 3, y + 25);
 
-    // create truncated version: first 10 chars + ... + last 10 chars
-    char truncated[24];
-    strncpy(truncated, wallets[index].address, 10);
-    truncated[10] = '.';
-    truncated[11] = '.';
-    truncated[12] = '.';
-
     int addr_len = strlen(wallets[index].address);
-    strncpy(truncated + 13, wallets[index].address + addr_len - 10, 10);
-    truncated[23] = '\0';
 
-    lcd->print(truncated);
+    // only use "first 10...last 10" format if address is long enough
+    // truncated format needs at least 24 chars to make sense (10 + 3 + 10 = 23 displayed)
+    if (addr_len > 23) {
+      // create truncated version: first 10 chars + ... + last 10 chars
+      char truncated[24];
+      strncpy(truncated, wallets[index].address, 10);
+      truncated[10] = '.';
+      truncated[11] = '.';
+      truncated[12] = '.';
+      strncpy(truncated + 13, wallets[index].address + addr_len - 10, 10);
+      truncated[23] = '\0';
+      lcd->print(truncated);
+    } else {
+      // address is short enough to display as-is
+      lcd->print(wallets[index].address);
+    }
   }
 
   // show active indicator if this wallet is selected
