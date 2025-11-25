@@ -48,20 +48,10 @@ class WalletConfigScreen {
   Keyboard kb;
 
   // drawing methods
-  void draw_back_button(lgfx::LGFX_Device* lcd);
-  void draw_header(lgfx::LGFX_Device* lcd);
   void draw_list(lgfx::LGFX_Device* lcd);
   void draw_list_item(uint8_t index, uint16_t x, uint16_t y, lgfx::LGFX_Device* lcd);
   void draw_popup_menu(lgfx::LGFX_Device* lcd);
   
-
-  // touch detection helpers
-  bool is_point_in_rect(uint16_t touch_x,
-                        uint16_t touch_y,
-                        uint16_t rect_x,
-                        uint16_t rect_y,
-                        uint16_t rect_width,
-                        uint16_t rect_height);
 
   // nvs persistence
   void save_to_nvs(uint8_t index);
